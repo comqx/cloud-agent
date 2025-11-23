@@ -1,0 +1,421 @@
+多数据库 Agent 执行模块 — 整体技术方案（Golang）
+
+目标：为已完成的 cloud-agent 通信层，设计并实现云下 Agent 的多数据库执行模块（Golang），支持 MySQL、PostgreSQL、MongoDB、Elasticsearch、Doris、ClickHouse 等主流后端执行器。模块要具备统一任务接收、执行、结果上报、限流/并发控制、审计与可观测性。
+
+设计原则：
+	•	通道最小改动：复用现有 WebSocket 通信通道和消息协议，仅扩展参数传递
+	•	最大兼容性：保持现有 Executor 接口不变，通过扩展参数和结果格式实现新功能
+	•	渐进式增强：先实现核心执行功能，回滚/补偿功能预留接口，后续迭代开发
+
+⸻
+
+1. 总体设计目标
+	•	通用性：统一任务模型、统一返回格式，便于上层平台调用与展示。
+	•	可扩展性：插件式 Executor，新增数据库仅需实现 Executor 接口并注册。
+	•	安全性：支持凭据隔离、密钥注入、连接白名单、执行沙箱策略。
+	•	可靠性：幂等/重试/超时策略，任务状态持久化，失败补偿与人工干预。
+	•	可观测性：详细日志、指标、审计记录和执行结果详情。
+	•	回滚功能：预留接口和数据结构，暂不实现（后续迭代开发）。
+
+⸻
+
+2. 架构概览
+
+云上控制台/API
+    │  (任务下发 via existing cloud-agent WebSocket channel)
+    ▼
+云下 Agent (已有通信层 - internal/agent/agent.go)
+ ├─ Task Dispatcher (复用现有 handleTaskCreate)
+ ├─ Executor Manager (复用现有 executor.Manager)
+ ├─ Executors (扩展现有 plugins.Executor 接口):
+ │    ├─ MySQLExecutor (使用 goInception，已实现)
+ │    ├─ PostgresExecutor (待实现)
+ │    ├─ MongoExecutor (待实现)
+ │    ├─ ESExecutor (待实现)
+ │    ├─ DorisExecutor (复用 MySQLExecutor，待适配)
+ │    └─ ClickHouseExecutor (待实现)
+ ├─ Result Collector (在 Executor 内部实现，通过 logCallback 上报)
+ ├─ Audit Storage (可选，本地文件或数据库存储)
+ └─ Observability (metrics/logs/trace，可选)
+
+组件职责：
+	•	Task Dispatcher：复用现有 agent.handleTaskCreate，解析扩展参数，路由到对应 Executor。
+	•	Executor Manager：复用现有 executor.Manager，管理 Executor 生命周期、连接池、限流配置。
+	•	Executor：按数据库类型执行 SQL/DSL/操作，负责事务策略（回滚功能预留接口）。
+	•	Result Collector：在 Executor 内部统一组装执行结果（包括影响行数、错误等级、执行耗时），通过现有 logCallback 和返回值上报。
+	•	Audit Storage：可选组件，保存执行历史、执行详情（回滚 SQL 预留字段，暂不生成）。
+
+⸻
+
+3. 任务模型（兼容现有通道）
+
+现有通道使用 TaskCreateData 结构（internal/common/protocol.go）：
+```go
+type TaskCreateData struct {
+    TaskID  string                 `json:"task_id"`
+    Type    TaskType               `json:"type"`      // mysql, postgres, mongo, es, doris, clickhouse
+    Command string                 `json:"command"`   // SQL / DSL / 命令文本
+    Params  map[string]interface{} `json:"params"`    // 扩展参数
+    FileID  string                 `json:"file_id"`   // 可选的文件ID
+}
+```
+
+扩展参数（通过 Params 传递）：
+```json
+{
+  "target": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "secret_ref": "cred-id",  // 可选，从 Secret Manager 获取凭据
+    "db": "test_db"
+  },
+  "connection": "default",    // 可选，使用配置文件中的连接名
+  "database": "test_db",      // 可选，直接指定数据库名
+  "mode": "execute",          // execute | dry-run（预留）
+  "exec_options": {
+    "trans_batch_size": 200,   // 事务批次大小（MySQL/Postgres）
+    "backup": true,            // 是否备份（goInception 支持）
+    "sleep_ms": 0,             // 批次间休眠时间
+    "timeout_ms": 600000,      // 执行超时时间
+    "concurrency": 1           // 并发数（预留）
+  },
+  "metadata": {               // 可选，审计用
+    "env": "prod",
+    "creator": "user",
+    "ticket": "#123"
+  }
+}
+```
+
+说明：
+	•	Command 字段：直接传递 SQL/DSL 文本，或通过 FileID 引用已上传的文件。
+	•	Params 字段：扩展参数，向后兼容（现有任务可不传这些参数）。
+	•	secret_ref：在 Agent 端由 Secret Manager 解密成连接凭据（预留功能，当前可先使用配置文件中的连接信息）。
+	•	connection/database：优先使用 Params 中的配置，其次使用 agent-plugins.yaml 中的连接配置。
+
+⸻
+
+4. Golang 接口设计（兼容现有接口）
+
+现有 Executor 接口（internal/agent/plugins/executor.go）：
+```go
+type Executor interface {
+    Execute(taskID string, command string, params map[string]interface{}, 
+            fileID string, logCallback LogCallback) (string, error)
+    Cancel(taskID string) error
+    Type() common.TaskType
+}
+```
+
+保持现有接口不变，通过以下方式扩展功能：
+	•	params 参数：传递扩展的任务配置（target、exec_options、metadata 等）
+	•	返回值 string：支持 JSON 格式的结构化结果（向后兼容，现有返回文本格式）
+	•	logCallback：通过日志回调上报详细的执行进度和结果
+
+可选扩展接口（预留，暂不实现）：
+```go
+// AdvancedExecutor 高级执行器接口（预留）
+type AdvancedExecutor interface {
+    Executor  // 嵌入现有接口
+    
+    // SupportRollback 是否支持回滚（预留）
+    SupportRollback() bool
+    
+    // Rollback 执行回滚（预留，通过 runID 或 taskID 标识）
+    Rollback(ctx context.Context, runID string) (*ExecutionResult, error)
+    
+    // GetExecutionResult 获取执行结果详情（预留）
+    GetExecutionResult(runID string) (*ExecutionResult, error)
+}
+```
+
+执行结果数据结构（Executor 内部使用，通过返回值 JSON 序列化）：
+```go
+// ExecutionResult 执行结果（预留完整结构，当前部分字段暂不使用）
+type ExecutionResult struct {
+    RunID        string    `json:"run_id,omitempty"`        // 执行ID（预留）
+    TaskID       string    `json:"task_id"`                 // 任务ID
+    Success      bool      `json:"success"`                 // 是否成功
+    ErrorLevel   int       `json:"error_level"`             // 0-正常，1-警告，2-错误
+    RowsAffected int64     `json:"rows_affected,omitempty"` // 影响行数
+    Stage        string    `json:"stage,omitempty"`         // 执行阶段（CHECKED, EXECUTED）
+    RollbackSQL  string    `json:"rollback_sql,omitempty"`  // 回滚SQL（预留，goInception 已支持但暂不处理）
+    BackupDBName string    `json:"backup_dbname,omitempty"` // 备份数据库名（goInception）
+    ExecuteTime  string    `json:"execute_time,omitempty"` // 执行耗时
+    ErrorMsg     string    `json:"error_msg,omitempty"`     // 错误信息
+    StartAt      time.Time `json:"start_at,omitempty"`      // 开始时间
+    EndAt        time.Time `json:"end_at,omitempty"`        // 结束时间
+    // 文本结果（向后兼容）
+    TextResult   string    `json:"text_result,omitempty"`    // 文本格式结果
+}
+```
+
+说明：
+	•	保持现有 Executor 接口不变，确保向后兼容。
+	•	执行结果可通过 JSON 格式返回，同时保留文本格式以兼容现有调用。
+	•	回滚相关字段预留，当前阶段不实现回滚逻辑。
+
+
+⸻
+
+5. 各数据库执行策略
+
+MySQL (含 MariaDB)
+	•	执行引擎：goInception（通过 HTTP API 调用，已实现）
+	•	配置：通过 agent-plugins.yaml 配置 goinception_url 和连接信息
+	•	支持功能：
+		- SQL 审核（goInception 内置）
+		- SQL 执行
+		- 自动备份（goInception 支持，通过 backup 参数控制）
+		- 回滚 SQL 生成（goInception 已生成，当前阶段仅记录，不实现回滚逻辑）
+	•	推荐策略：
+		- 使用 goInception 的批次执行能力
+		- 通过 exec_options.trans_batch_size 控制批次大小（goInception 内部处理）
+		- 通过 exec_options.backup 控制是否备份
+	•	安全：goInception 内置 SQL 审核规则，可配置白名单/黑名单（预留）
+
+Doris
+	•	执行策略：复用 MySQLExecutor（Doris 支持 MySQL 协议）
+	•	特殊处理：长时间查询需要增加 timeout_ms 配置
+	•	注意事项：Doris 事务支持较弱，建议谨慎使用
+
+PostgreSQL
+	•	驱动：github.com/jackc/pgx/v5
+	•	支持事务：是（使用 BEGIN/COMMIT/ROLLBACK）
+	•	推荐策略：如果 payload 包含多条 DML，按 trans_batch_size 分批执行
+	•	特殊注意：DDL 会隐式提交，部分语法与 MySQL 不同
+	•	回滚：使用事务自动回滚失败批次（回滚功能预留）
+
+MongoDB
+	•	驱动：go.mongodb.org/mongo-driver
+	•	执行方式：payload 为 JSON 操作序列或 mongo shell 脚本
+	•	事务：支持 multi-document 事务（ReplicaSet / 4.0+），但在大批量修改上不建议使用
+	•	回滚：预留接口，当前阶段不实现
+
+Elasticsearch
+	•	客户端：github.com/elastic/go-elasticsearch/v8
+	•	执行方式：REST DSL（bulk、update、delete_by_query 等）
+	•	事务：无；对 delete_by_query 等操作，建议先执行 snapshot（预留功能）
+	•	回滚：预留接口，当前阶段不实现
+
+ClickHouse
+	•	驱动：github.com/ClickHouse/clickhouse-go/v2 或 HTTP 接口
+	•	事务：不支持通用事务（仅部分引擎如 Atomic 行为有限）
+	•	建议：任何破坏性操作（ALTER DROP PART/DELETE）必须人工审批
+	•	回滚：预留接口，当前阶段不实现
+
+⸻
+
+6. 回滚/备份策略（预留，当前阶段不实现）
+
+当前阶段：
+	•	MySQL：goInception 已支持备份和回滚 SQL 生成，当前仅记录回滚 SQL，不实现回滚执行逻辑
+	•	其他数据库：预留接口和数据结构，暂不实现
+
+预留设计（后续迭代）：
+	•	MySQL/Postgres：使用数据库事务（分批）+ goInception 生成的回滚 SQL
+	•	MongoDB/ES/ClickHouse/Doris：在执行破坏性操作前，先以只读查询导出受影响记录快照到 Audit 存储
+	•	通用机制：所有执行都应产生 ExecutionRecord，包含输入 payload、解析出的每条语句、影响范围、回滚脚本（如果有）、审计元数据
+
+⸻
+
+7. 安全与凭据管理
+
+当前实现：
+	•	连接配置：通过 agent-plugins.yaml 配置文件管理连接信息（数据库名等）
+	•	goInception：MySQL 执行通过 goInception，连接信息由 goInception 管理
+
+预留功能（后续迭代）：
+	•	Secret Manager：Agent 不直接存储明文凭据。cloud-agent 下发任务时仅传 secret_ref，Agent 从本地安全存储（或 KMS）取明文连接信息。
+	•	动态连接：通过 Params.target 传递连接信息，支持 secret_ref 从 Secret Manager 获取
+	•	权限最小化：执行时使用授权最小化账号，例如只授予表级写权限，禁止 SUPER 权限。
+	•	白名单/黑名单：目标主机与数据库名称白名单；敏感语句黑名单（如直接 DROP DATABASE、删除整个表）需要强制人工审批。
+	•	审计加密：将敏感审计记录（回滚 SQL）加密存储。
+
+⸻
+
+8. 并发、限流与资源控制
+	•	按 Executor 维护连接池（driver connection pool）和最大并发数。
+	•	任务级别支持 concurrency 配置，Agent 全局配置最大并发任务数以避免资源枯竭。
+	•	对长耗时查询设定 timeout_ms，并在超时后尝试优雅取消（context cancel / kill query）。
+
+⸻
+
+9. 错误处理与重试策略
+	•	瞬时网络/超时错误：短重试（指数退避），重试次数可配置（预留）。
+	•	语法/权限错误：不重试，直接上报并人工介入。
+	•	部分失败（批次失败）：记录失败明细并触发告警/人工处理流程（回滚当前批次功能预留）。
+	•	幂等性：任务应包含唯一 task_id，防止重复执行（RunID + SQL_SHA1 机制预留）。
+	•	当前实现：通过 goInception 的错误级别（error_level）区分错误类型，通过 logCallback 上报详细错误信息。
+
+⸻
+
+10. 日志、审计与可观测性
+
+当前实现：
+	•	日志上报：通过现有 logCallback 机制，使用 MessageTypeTaskLog 上报日志
+	•	日志格式：通过 logCallback 传递 level（info/warn/error）和 message
+	•	结果上报：通过现有返回值（string）和 TaskCompleteData 上报执行结果
+
+预留功能（后续迭代）：
+	•	结构化日志：JSON 格式，包含 task_id、run_id、db_type、target、sql_sha1、stage、errlevel、rows、start/end。
+	•	指标（Prometheus）：任务计数（成功/失败/timeout）、执行时长分布、每种 DB 的并发数、回滚次数。
+	•	追踪：支持 OpenTelemetry tracing，从 cloud-agent 下发到 Agent 执行链路完整追踪。
+	•	审计存储：执行 payload、回滚脚本、执行输出保留 N 天（可配置）。
+
+⸻
+
+11. 测试策略
+	•	单元测试：每个 Executor 的核心逻辑 mock DB 驱动。
+	•	集成测试：提供 Docker Compose 或 Testcontainers 集群（MySQL, Postgres, Mongo, ES, ClickHouse, Doris）跑真实回归测试。
+	•	灰度回放：在非生产环境下回放真实任务样本以验证行为。
+
+⸻
+
+12. 部署与运维
+	•	Agent 以容器方式部署，支持 k8s DaemonSet 或 Deployment（按每台机器/地域分配）。
+	•	配置热加载：支持从中心配置服务拉取或热更新限流/白名单/黑名单策略。
+	•	升级策略：滚动升级 + 版本兼容检测（避免 Executor 接口变更导致不兼容）。
+
+⸻
+
+13. 示例代码片段（兼容现有实现）
+
+// 现有 Executor 注册（internal/agent/executor/plugin_config.go）
+func LoadPluginsFromConfig(config *PluginConfig, manager *Manager) error {
+    for _, pluginDef := range config.Plugins {
+        switch taskType {
+        case common.TaskTypeMySQL:
+            exec = plugins.NewMySQLExecutor(pluginDef.Config)
+        case common.TaskTypePostgres:
+            exec, err = plugins.NewDatabaseExecutor("postgres", pluginDef.Config)
+        // ...
+        }
+        manager.RegisterExecutor(exec)
+    }
+}
+
+// 现有任务执行流程（internal/agent/agent.go）
+func (a *Agent) executeTask(taskData *common.TaskCreateData) {
+    logCallback := func(taskID string, level string, message string) {
+        a.sendLog(taskID, level, message)
+    }
+    
+    // 执行任务（复用现有接口）
+    result, err := a.executor.Execute(
+        taskData.TaskID, 
+        taskData.Type, 
+        taskData.Command, 
+        taskData.Params,  // 扩展参数通过这里传递
+        taskData.FileID, 
+        logCallback,
+    )
+    
+    // 上报结果（复用现有通道）
+    completeData := common.TaskCompleteData{
+        TaskID:    taskData.TaskID,
+        Status:    status,
+        Result:    result,  // 可以是 JSON 格式的结构化结果
+        Error:     errorMsg,
+        Timestamp: time.Now().Unix(),
+    }
+}
+
+// Executor 实现示例（MySQL，已实现）
+func (e *MySQLExecutor) Execute(taskID string, command string, 
+    params map[string]interface{}, fileID string, 
+    logCallback LogCallback) (string, error) {
+    
+    // 解析扩展参数
+    dbName := extractDatabaseName(params)
+    backup := extractBackupOption(params)
+    
+    // 调用 goInception
+    result := e.callGoInception(command, dbName, backup, logCallback, taskID)
+    
+    // 返回结果（可以是 JSON 格式）
+    return result, nil
+}
+
+
+⸻
+
+14. 迭代计划（调整）
+
+Phase 1 - MVP（当前阶段，2-4 周）：
+	•	MySQL Executor：已实现（使用 goInception），需要增强参数解析和结果格式化
+	•	Postgres Executor：实现基础执行功能（事务批次、错误处理）
+	•	Mongo Executor：实现基础执行功能（操作序列、错误处理）
+	•	任务调度：复用现有 executor.Manager 和 agent.handleTaskCreate
+	•	日志与上报：复用现有 logCallback 和 TaskCompleteData
+	•	结果格式：支持 JSON 结构化结果，保持文本格式兼容
+
+Phase 2（2-3 周）：
+	•	ES Executor：实现 REST DSL 执行
+	•	ClickHouse Executor：实现 SQL 执行
+	•	Doris Executor：适配 MySQL Executor（兼容 MySQL 协议）
+	•	Secret Manager：实现凭据管理（预留接口）
+	•	限流/并发控制：增强 Executor Manager
+
+Phase 3（持续，预留）：
+	•	回滚功能：实现 AdvancedExecutor 接口，支持回滚执行
+	•	审计存储：实现执行历史存储和查询
+	•	监控告警：集成 Prometheus 指标和告警
+	•	灰度回放：在非生产环境回放真实任务样本
+
+⸻
+
+15. 风险与注意事项
+	•	通道兼容性：确保扩展参数不影响现有任务执行，Params 字段向后兼容。
+	•	接口兼容性：保持现有 Executor 接口不变，通过扩展参数和返回值实现新功能。
+	•	MySQL 执行：继续使用 goInception，充分利用其审核、备份、回滚 SQL 生成能力。
+	•	不同数据库回滚能力差异大，当前阶段不实现回滚，后续在 UI/API 层对可回滚性做明确标注。
+	•	对 ClickHouse、Elasticsearch 等无事务数据库，强烈建议"先备份再修改"策略，或限制自动化执行权限（预留功能）。
+	•	执行凭据安全和最小权限是首要防线（Secret Manager 预留功能）。
+
+⸻
+
+16. 附录：建议依赖（Go）
+
+当前已使用：
+	•	MySQL: goInception（通过 HTTP API，无需直接驱动）
+
+Phase 1 需要：
+	•	Postgres: github.com/jackc/pgx/v5
+	•	MongoDB: go.mongodb.org/mongo-driver/mongo
+
+Phase 2 需要：
+	•	ES: github.com/elastic/go-elasticsearch/v8
+	•	ClickHouse: github.com/ClickHouse/clickhouse-go/v2
+
+可选（后续迭代）：
+	•	Logging: go.uber.org/zap（当前使用标准 log 包）
+	•	Tracing: go.opentelemetry.io/otel
+	•	Metrics: github.com/prometheus/client_golang
+
+⸻
+
+17. 实施要点总结
+
+通道兼容性：
+	•	复用现有 WebSocket 通道和消息协议（MessageTypeTaskCreate, TaskCreateData）
+	•	通过 Params 字段传递扩展参数，不影响现有任务
+	•	通过返回值支持 JSON 格式结果，保持文本格式兼容
+
+接口兼容性：
+	•	保持现有 Executor 接口不变
+	•	通过 logCallback 上报详细日志
+	•	预留 AdvancedExecutor 接口用于回滚功能
+
+MySQL 执行策略：
+	•	继续使用 goInception 作为执行引擎
+	•	充分利用 goInception 的审核、备份、回滚 SQL 生成能力
+	•	当前阶段仅记录回滚 SQL，不实现回滚执行
+
+实施优先级：
+	1.	增强 MySQL Executor 的参数解析和结果格式化
+	2.	实现 Postgres Executor 和 Mongo Executor
+	3.	实现 ES、ClickHouse、Doris Executor
+	4.	实现 Secret Manager 和限流控制
+	5.	实现回滚功能和审计存储（预留）

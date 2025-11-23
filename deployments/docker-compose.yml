@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  cloud:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.cloud
+    ports:
+      - "8080:8080"
+    volumes:
+      - cloud-data:/app/data
+      - cloud-files:/app/data/files
+    environment:
+      - DB_PATH=/app/data/cloud.db
+      - FILE_STORAGE=/app/data/files
+    restart: unless-stopped
+    networks:
+      - cloud-agent
+
+  agent:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.agent
+    depends_on:
+      - cloud
+    environment:
+      - CLOUD_URL=http://cloud:8080
+      - AGENT_ID=${AGENT_ID:-}
+      - AGENT_NAME=${AGENT_NAME:-agent-1}
+      - K8S_CLUSTER_NAME=${K8S_CLUSTER_NAME:-}
+    restart: unless-stopped
+    networks:
+      - cloud-agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # 如果需要执行 Docker 命令
+      - agent-data:/app/data
+
+volumes:
+  cloud-data:
+  cloud-files:
+  agent-data:
+
+networks:
+  cloud-agent:
+    driver: bridge
+

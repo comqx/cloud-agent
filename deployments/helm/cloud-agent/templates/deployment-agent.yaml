@@ -1,0 +1,41 @@
+{{- if .Values.agent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloud-agent.fullname" . }}-agent
+  labels:
+    {{- include "cloud-agent.labels" . | nindent 4 }}
+    component: agent
+spec:
+  replicas: {{ .Values.agent.replicas }}
+  selector:
+    matchLabels:
+      {{- include "cloud-agent.selectorLabels" . | nindent 6 }}
+      component: agent
+  template:
+    metadata:
+      labels:
+        {{- include "cloud-agent.selectorLabels" . | nindent 8 }}
+        component: agent
+    spec:
+      containers:
+      - name: agent
+        image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+        imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+        env:
+        - name: CLOUD_URL
+          value: {{ .Values.agent.cloudURL | quote }}
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: AGENT_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: K8S_CLUSTER_NAME
+          value: {{ .Values.agent.clusterName | default "" | quote }}
+        resources:
+          {{- toYaml .Values.agent.resources | nindent 10 }}
+{{- end }}
+

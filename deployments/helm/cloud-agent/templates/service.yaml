@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloud-agent.fullname" . }}-cloud
+  labels:
+    {{- include "cloud-agent.labels" . | nindent 4 }}
+    component: cloud
+spec:
+  type: {{ .Values.cloud.service.type }}
+  ports:
+    - port: {{ .Values.cloud.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "cloud-agent.selectorLabels" . | nindent 4 }}
+    component: cloud
+

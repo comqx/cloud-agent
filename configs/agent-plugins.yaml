@@ -1,0 +1,147 @@
+# Agent 插件配置文件
+# 定义可用的执行器插件
+
+plugins:
+  # Shell 命令执行器
+  - type: shell
+    enabled: true
+    config:
+      timeout: 1800  # 超时时间（秒），默认 30 分钟
+  # Kubernetes 执行器
+  - type: k8s
+    enabled: true
+    config:
+      kubeconfig: ~/.kube/config  # kubeconfig 文件路径
+      namespace: default
+
+  # HTTP API 执行器
+  - type: api
+    enabled: true
+    config:
+      timeout: 30  # 请求超时时间（秒）
+      verify_ssl: true
+
+  # 文件操作执行器
+  - type: file
+    enabled: true
+    config:
+      base_path: /tmp/cloud-agent  # 文件操作基础路径
+
+
+  # MySQL 执行器（使用 goInception）
+  - type: mysql
+    enabled: true
+    config:
+      # goInception 服务地址
+      goinception_url: http://localhost:4000
+      # 数据库连接配置（用于指定数据库名）
+      connections:
+        - name: default
+          database: test
+        # 可以配置多个连接
+        # - name: production
+        #   database: prod_db
+
+  # PostgreSQL 执行器
+  - type: postgres
+    enabled: true
+    config:
+      connections:
+        - name: default
+          host: localhost
+          port: 5432
+          database: test
+          user: postgres
+          password: ""
+          sslmode: disable
+        # 可以配置多个连接
+        # - name: production
+        #   host: prod-db.example.com
+        #   port: 5432
+        #   database: prod_db
+        #   user: postgres
+        #   password: "your_password"
+        #   sslmode: require
+
+  # Redis 执行器（预留）
+  # - type: redis
+  #   enabled: false
+  #   config:
+  #     connections:
+  #       - name: default
+  #         host: localhost
+  #         port: 6379
+  #         password: ""
+
+  # MongoDB 执行器
+  - type: mongo
+    enabled: true
+    config:
+      connections:
+        - name: default
+          host: localhost
+          port: 27017
+          database: test
+          user: ""
+          password: ""
+        # 可以配置多个连接
+        # - name: production
+        #   host: prod-mongo.example.com
+        #   port: 27017
+        #   database: prod_db
+        #   user: admin
+        #   password: "your_password"
+
+  # Elasticsearch 执行器
+  - type: elasticsearch
+    enabled: true
+    config:
+      connections:
+        - name: default
+          host: localhost
+          port: 9200
+          user: ""
+          password: ""
+          # api_key: ""  # 可选，使用 API Key 认证
+        # 可以配置多个连接
+        # - name: production
+        #   host: prod-es.example.com
+        #   port: 9200
+        #   user: elastic
+        #   password: "your_password"
+
+  # ClickHouse 执行器
+  - type: clickhouse
+    enabled: true
+    config:
+      connections:
+        - name: default
+          host: localhost
+          port: 9000  # Native 协议端口
+          # port: 8123  # HTTP 协议端口（如果使用 HTTP）
+          # protocol: "native"  # native 或 http，默认 native
+          database: default
+          user: default
+          password: ""
+        # 可以配置多个连接
+        # - name: production
+        #   host: prod-ch.example.com
+        #   port: 9000
+        #   database: prod_db
+        #   user: default
+        #   password: "your_password"
+
+  # Doris 执行器（复用 MySQL 协议，使用 goInception）
+  - type: doris
+    enabled: true
+    config:
+      # goInception 服务地址（如果支持 Doris）
+      goinception_url: http://localhost:4000
+      # 数据库连接配置
+      connections:
+        - name: default
+          database: test
+        # 可以配置多个连接
+        # - name: production
+        #   database: prod_db
+

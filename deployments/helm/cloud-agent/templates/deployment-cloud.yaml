@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloud-agent.fullname" . }}-cloud
+  labels:
+    {{- include "cloud-agent.labels" . | nindent 4 }}
+    component: cloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "cloud-agent.selectorLabels" . | nindent 6 }}
+      component: cloud
+  template:
+    metadata:
+      labels:
+        {{- include "cloud-agent.selectorLabels" . | nindent 8 }}
+        component: cloud
+    spec:
+      containers:
+      - name: cloud
+        image: "{{ .Values.cloud.image.repository }}:{{ .Values.cloud.image.tag }}"
+        imagePullPolicy: {{ .Values.cloud.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: DB_PATH
+          value: "/app/data/cloud.db"
+        - name: FILE_STORAGE
+          value: "/app/data/files"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        resources:
+          {{- toYaml .Values.cloud.resources | nindent 10 }}
+      volumes:
+      - name: data
+        {{- if .Values.cloud.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "cloud-agent.fullname" . }}-cloud-data
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+

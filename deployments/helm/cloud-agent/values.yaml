@@ -1,0 +1,37 @@
+cloud:
+  image:
+    repository: cloud-agent/cloud
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 10Gi
+
+agent:
+  enabled: true
+  replicas: 1
+  image:
+    repository: cloud-agent/agent
+    tag: latest
+    pullPolicy: IfNotPresent
+  cloudURL: "http://cloud-agent-cloud:8080"
+  clusterName: ""  # K8s 集群名称，如果为空则从环境变量获取
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+

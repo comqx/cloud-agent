@@ -1,0 +1,7 @@
+apiVersion: v2
+name: cloud-agent
+description: A Helm chart for Cloud Agent
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+

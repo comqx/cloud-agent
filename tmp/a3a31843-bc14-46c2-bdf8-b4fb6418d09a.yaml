@@ -1,0 +1,180 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  creationTimestamp: '2025-10-14T07:58:07Z'
+  finalizers:
+    - finalizer.keda.sh
+  generation: 16
+  labels:
+    ElasticPool: 'true'
+    app.kubernetes.io/component: scaledobject
+    app.kubernetes.io/instance: cron-autoscaler
+    app.kubernetes.io/managed-by: keda-auto-operator
+    app.kubernetes.io/name: keda-auto-operator
+    keda-auto-operator/service: basic-org-service
+    scaledobject.keda.sh/name: basic-org-service-scaledobject
+  managedFields:
+    - apiVersion: keda.sh/v1alpha1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:labels:
+            .: {}
+            f:ElasticPool: {}
+            f:app.kubernetes.io/component: {}
+            f:app.kubernetes.io/instance: {}
+            f:app.kubernetes.io/managed-by: {}
+            f:app.kubernetes.io/name: {}
+            f:keda-auto-operator/service: {}
+            f:scaledobject.keda.sh/name: {}
+          f:ownerReferences:
+            .: {}
+            k:{"uid":"4b0f8c70-c5e0-4ac4-8dea-e1c76e54595e"}:
+              .: {}
+              f:apiVersion: {}
+              f:blockOwnerDeletion: {}
+              f:controller: {}
+              f:kind: {}
+              f:name: {}
+              f:uid: {}
+        f:spec:
+          .: {}
+          f:advanced:
+            .: {}
+            f:horizontalPodAutoscalerConfig:
+              .: {}
+              f:behavior:
+                .: {}
+                f:scaleDown:
+                  .: {}
+                  f:policies: {}
+                  f:selectPolicy: {}
+                  f:stabilizationWindowSeconds: {}
+                f:scaleUp:
+                  .: {}
+                  f:policies: {}
+                  f:selectPolicy: {}
+                  f:stabilizationWindowSeconds: {}
+          f:cooldownPeriod: {}
+          f:maxReplicaCount: {}
+          f:minReplicaCount: {}
+          f:pollingInterval: {}
+          f:scaleTargetRef:
+            .: {}
+            f:apiVersion: {}
+            f:kind: {}
+            f:name: {}
+          f:triggers: {}
+      manager: Go-http-client
+      operation: Update
+      time: '2025-10-14T07:58:07Z'
+    - apiVersion: keda.sh/v1alpha1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:finalizers:
+            .: {}
+            v:"finalizer.keda.sh": {}
+        f:status:
+          .: {}
+          f:conditions: {}
+          f:externalMetricNames: {}
+          f:hpaName: {}
+          f:lastActiveTime: {}
+          f:originalReplicaCount: {}
+          f:scaleTargetGVKR:
+            .: {}
+            f:group: {}
+            f:kind: {}
+            f:resource: {}
+            f:version: {}
+          f:scaleTargetKind: {}
+      manager: keda
+      operation: Update
+      time: '2025-11-06T02:06:17Z'
+    - apiVersion: keda.sh/v1alpha1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          f:health:
+            .: {}
+            f:s0-cron-asia-shanghai-09207x-017257x:
+              .: {}
+              f:numberOfFailures: {}
+              f:status: {}
+      manager: keda-adapter
+      operation: Update
+      time: '2025-11-19T06:35:46Z'
+  name: basic-org-service-scaledobject
+  namespace: geip-replay
+  ownerReferences:
+    - apiVersion: keda-auto-operator.example.com/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: KedaAutoScaler
+      name: cron-autoscaler
+      uid: 4b0f8c70-c5e0-4ac4-8dea-e1c76e54595e
+  resourceVersion: '1997654132'
+  uid: 6402753c-f4fb-45d5-8396-b582418c32c5
+spec:
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          policies:
+            - periodSeconds: 30
+              type: Pods
+              value: 2
+          selectPolicy: Max
+          stabilizationWindowSeconds: 30
+        scaleUp:
+          policies:
+            - periodSeconds: 30
+              type: Pods
+              value: 4
+          selectPolicy: Min
+          stabilizationWindowSeconds: 30
+  cooldownPeriod: 50
+  maxReplicaCount: 8
+  minReplicaCount: 1
+  pollingInterval: 30
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: basic-org-service
+  triggers:
+    - metadata:
+        desiredReplicas: '8'
+        end: 0 17 25 7 *
+        start: 0 9 20 7 *
+        timezone: Asia/Shanghai
+      type: cron
+status:
+  conditions:
+    - message: ScaledObject is defined correctly and is ready for scaling
+      reason: ScaledObjectReady
+      status: 'True'
+      type: Ready
+    - message: Scaling is not performed because triggers are not active
+      reason: ScalerNotActive
+      status: 'False'
+      type: Active
+    - message: No fallbacks are active on this scaled object
+      reason: NoFallbackFound
+      status: 'False'
+      type: Fallback
+  externalMetricNames:
+    - s0-cron-Asia-Shanghai-09207x-017257x
+  health:
+    s0-cron-asia-shanghai-09207x-017257x:
+      numberOfFailures: 0
+      status: Happy
+  hpaName: keda-hpa-basic-org-service-scaledobject
+  lastActiveTime: '2025-11-06T02:06:05Z'
+  originalReplicaCount: 8
+  scaleTargetGVKR:
+    group: apps
+    kind: Deployment
+    resource: deployments
+    version: v1
+  scaleTargetKind: apps/v1.Deployment
