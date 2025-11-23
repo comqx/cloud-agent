@@ -95,13 +95,13 @@ func (ws *WSConnection) Close() error {
 		ws.mu.Lock()
 		defer ws.mu.Unlock()
 		
-		if ws.closed {
+	if ws.closed {
 			return
-		}
-		ws.closed = true
+	}
+	ws.closed = true
 		
-		close(ws.done)
-		close(ws.send)
+	close(ws.done)
+	close(ws.send)
 		close(ws.recv)
 		err = ws.conn.Close()
 	})

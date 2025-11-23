@@ -12,12 +12,12 @@ function App() {
     <ConfigProvider locale={zhCN}>
       <BrowserRouter>
         <Layout>
-          <Routes>
+        <Routes>
             <Route path="/" element={<Agents />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/files" element={<Files />} />
             <Route path="/history" element={<History />} />
-          </Routes>
+        </Routes>
         </Layout>
       </BrowserRouter>
     </ConfigProvider>

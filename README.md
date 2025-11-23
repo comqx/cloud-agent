@@ -1,31 +1,231 @@
 # Cloud Agent
 
-一个面向运维的低门槛混合云远程管控开源项目。
+> 一个面向运维的低门槛混合云远程管控开源项目
 
-## 核心特性
+**Cloud Agent** 是一个开箱即用的混合云远程执行与发布系统，支持文件分发、SQL执行、命令执行、Kubernetes部署和实时日志回传，零开发成本，面向运维人员，像用FTP一样简单。
 
-- 🚀 **无需开发能力**：只需部署 cloud + agent，就可以在网页/CLI 上完成各种操作
-- 📦 **统一执行模型**：文件上传 → SQL 执行 → 远程命令 → API 调用 → Kubernetes 发布 → 实时日志返回
-- 🔗 **长连接管理**：Agent 自动注册、保持连接、可寻址执行任务
-- 👀 **实时可见**：执行过程实时显示日志，失败可重试
-- 🧩 **插件式扩展**：SQL、K8s、Shell、API 调用都作为插件，支持后续扩展
-- ☸️ **K8s 原生支持**：使用 client-go SDK 直接操作 Kubernetes，支持 in-cluster 配置
-- 🏷️ **集群标识**：Agent 自动上报所在 K8s 集群名称，便于多集群管理
-- 🔍 **SQL 审核**：集成 goInception，提供 SQL 审核、执行、备份和回滚功能
+---
 
-## 快速开始
+## 🎯 项目价值：解决不同角色的核心问题
+
+### 👨‍💼 传统运维人员
+**痛点**：
+- 需要在多个服务器上执行SQL、部署应用、查看日志
+- 不熟悉开发，无法编写自动化脚本
+- 跨地域、跨环境操作复杂，容易出错
+
+**解决方案**：
+- ✅ 零代码操作：通过Web界面或CLI，点几下就能完成所有操作
+- ✅ 统一入口：一个平台管理所有Agent节点，无需记忆多套工具
+- ✅ 实时反馈：执行过程实时显示日志，失败可立即重试
+- ✅ 文件分发：上传一次文件，自动分发到多个节点
+
+### 🔧 SRE/DevOps 工程师
+**痛点**：
+- 需要集成多种工具（Ansible、Kubectl、数据库客户端等）
+- 跨云、跨地域的统一管控困难
+- 缺乏统一的审计和日志追溯
+
+**解决方案**：
+- ✅ 统一执行模型：所有操作都通过任务系统，支持API调用和自动化集成
+- ✅ 插件化架构：SQL、K8s、Shell、API调用都作为插件，易于扩展
+- ✅ 完整审计：所有操作记录可追溯，支持历史回放
+- ✅ 多集群管理：Agent自动上报集群信息，支持多K8s集群统一管理
+
+### 👨‍💻 研发团队
+**痛点**：
+- 需要将远程执行能力集成到现有平台
+- 需要支持自定义执行器和工作流
+- 需要Webhook和API集成能力
+
+**解决方案**：
+- ✅ RESTful API：完整的API接口，支持深度集成
+- ✅ 插件开发：统一的Executor接口，易于开发自定义执行器
+- ✅ WebSocket支持：实时日志流式传输，支持自定义消息协议
+- ✅ CLI工具：支持脚本化和CI/CD集成
+
+---
+
+## 🏗️ 系统架构
+
+### 整体架构图
+
+```mermaid
+graph TB
+    subgraph "云上 Cloud Server"
+        UI[Web UI<br/>React + TypeScript]
+        API[REST API<br/>Gin Framework]
+        WS[WebSocket Server<br/>实时通信]
+        TaskMgr[任务管理器<br/>Task Manager]
+        AgentMgr[Agent管理器<br/>Agent Manager]
+        FileStorage[文件存储<br/>File Storage]
+        DB[(SQLite/PostgreSQL<br/>数据存储)]
+    end
+
+    subgraph "云下 Agent 节点"
+        Agent1[Agent 1<br/>K8s Cluster: prod]
+        Agent2[Agent 2<br/>K8s Cluster: staging]
+        Agent3[Agent 3<br/>K8s Cluster: dev]
+    end
+
+    subgraph "Agent 内部架构"
+        Client[WebSocket Client<br/>连接管理]
+        ExecMgr[执行器管理器<br/>Executor Manager]
+        Plugins[插件系统<br/>Plugins]
+        Shell[Shell Executor]
+        MySQL[MySQL Executor<br/>goInception]
+        K8s[K8s Executor<br/>client-go]
+        API_Exec[API Executor]
+        File_Exec[File Executor]
+        DB_Plugins[数据库插件<br/>Postgres/Redis/Mongo等]
+    end
+
+    subgraph "外部服务"
+        GoInception[goInception<br/>SQL审核执行]
+        K8sAPI[Kubernetes API<br/>集群操作]
+    end
+
+    UI --> API
+    UI --> WS
+    API --> TaskMgr
+    API --> AgentMgr
+    API --> FileStorage
+    TaskMgr --> DB
+    AgentMgr --> DB
+    WS --> AgentMgr
+
+    WS <-->|WebSocket<br/>长连接| Client
+    Client --> ExecMgr
+    ExecMgr --> Plugins
+    Plugins --> Shell
+    Plugins --> MySQL
+    Plugins --> K8s
+    Plugins --> API_Exec
+    Plugins --> File_Exec
+    Plugins --> DB_Plugins
+
+    MySQL --> GoInception
+    K8s --> K8sAPI
+
+    AgentMgr -.->|任务派发| Agent1
+    AgentMgr -.->|任务派发| Agent2
+    AgentMgr -.->|任务派发| Agent3
+
+    style UI fill:#e1f5ff
+    style API fill:#e1f5ff
+    style WS fill:#e1f5ff
+    style Agent1 fill:#fff4e1
+    style Agent2 fill:#fff4e1
+    style Agent3 fill:#fff4e1
+    style Plugins fill:#e8f5e9
+```
+
+### 核心组件说明
+
+#### Cloud Server（云上控制中心）
+- **Web UI**：基于React的现代化界面，支持任务创建、文件上传、实时日志查看
+- **REST API**：完整的RESTful接口，支持第三方集成
+- **WebSocket Server**：与Agent保持长连接，实现实时双向通信
+- **任务管理器**：任务创建、派发、状态跟踪、日志收集
+- **Agent管理器**：Agent注册、心跳监控、连接管理
+- **文件存储**：文件上传、存储、分发管理
+
+#### Agent（云下执行节点）
+- **WebSocket Client**：自动连接到Cloud，维持长连接和心跳
+- **执行器管理器**：统一的任务执行框架，支持插件化扩展
+- **插件系统**：
+  - **Shell Executor**：执行Shell命令
+  - **MySQL Executor**：通过goInception执行SQL，支持审核、备份、回滚
+  - **K8s Executor**：使用client-go SDK操作Kubernetes集群
+  - **API Executor**：执行HTTP/HTTPS请求
+  - **File Executor**：文件复制、删除、创建等操作
+  - **数据库插件**：PostgreSQL、Redis、MongoDB、Elasticsearch、ClickHouse、Doris等
+
+### 通信流程
+
+```mermaid
+sequenceDiagram
+    participant U as 用户/API
+    participant C as Cloud Server
+    participant A as Agent
+
+    Note over A: Agent启动
+    A->>C: WebSocket连接
+    A->>C: 注册消息（Agent ID、集群信息等）
+    C->>A: 注册成功响应
+
+    Note over U: 用户创建任务
+    U->>C: POST /api/v1/tasks
+    C->>C: 保存任务到数据库
+    C->>A: 通过WebSocket发送任务
+    A->>A: 执行器执行任务
+    A->>C: 实时日志流（WebSocket）
+    C->>U: 实时日志推送（WebSocket）
+    A->>C: 任务完成通知
+    C->>C: 更新任务状态
+    U->>C: GET /api/v1/tasks/:id
+    C->>U: 返回任务结果
+```
+
+---
+
+## ✨ 核心特性
+
+### 🚀 零开发成本
+- 只需部署 Cloud + Agent，即可在网页/CLI上完成各种操作
+- 无需编写代码，上传文件、点击执行即可
+
+### 📦 统一执行模型
+- 所有操作都通过统一的任务系统：**任务创建 → Agent执行 → 实时日志返回**
+- 支持文件上传、SQL执行、远程命令、API调用、Kubernetes部署等
+
+### 🔗 长连接管理
+- Agent自动注册到Cloud，维持WebSocket长连接
+- 支持心跳检测，自动重连
+- 每个Agent具备唯一ID，可被精确寻址执行任务
+
+### 👀 实时可见
+- 执行过程实时显示日志（WebSocket流式传输）
+- 任务状态实时更新（pending → running → success/failed）
+- 失败任务可立即重试
+
+### 🧩 插件式扩展
+- SQL、K8s、Shell、API调用都作为插件实现
+- 统一的Executor接口，易于开发自定义执行器
+- 通过YAML配置文件动态加载插件
+
+### ☸️ K8s 原生支持
+- 使用 `client-go` SDK 直接操作 Kubernetes
+- 支持 in-cluster 配置（在Pod中自动使用）
+- 支持 kubeconfig 文件配置（集群外运行）
+- Agent自动上报所在K8s集群名称，便于多集群管理
+
+### 🔍 SQL 审核与执行
+- 集成 [goInception](https://github.com/hanchuanchuan/goInception)，提供SQL审核功能
+- 支持SQL执行、自动备份、生成回滚语句
+- 支持MySQL、PostgreSQL等多种数据库
+
+### 📊 多数据库支持
+- **关系型数据库**：MySQL（goInception）、PostgreSQL
+- **NoSQL数据库**：Redis、MongoDB
+- **分析型数据库**：Elasticsearch、ClickHouse、Doris
+- 统一的数据库执行器接口，易于扩展新数据库类型
+
+---
+
+## 🚀 快速开始
 
 ### 前置要求
 
-- **goInception 服务**：SQL 执行器需要 goInception 服务支持
+- **Go 1.21+**
+- **goInception 服务**（SQL执行器需要）
   ```bash
   # 下载并启动 goInception
-  # 参考：https://github.com/hanchuanchuan/goInception
   docker pull hanchuanchuan/goinception
   docker run -d -p 4000:4000 hanchuanchuan/goinception
   ```
 
-### 使用 Docker Compose
+### 方式一：Docker Compose（推荐）
 
 ```bash
 # 克隆项目
@@ -39,7 +239,7 @@ docker-compose -f deployments/docker-compose.yml up -d
 docker-compose -f deployments/docker-compose.yml logs -f
 ```
 
-### 手动部署
+### 方式二：手动部署
 
 #### 1. 启动 Cloud 服务
 
@@ -61,7 +261,26 @@ go run cmd/agent/main.go -cloud http://localhost:8080 -name my-agent
 
 打开浏览器访问：http://localhost:8080
 
-## 使用 CLI
+### 方式三：Kubernetes 部署
+
+```bash
+# 使用 Helm Chart 部署
+helm install cloud-agent ./deployments/helm/cloud-agent
+```
+
+---
+
+## 📖 使用指南
+
+### Web UI 使用
+
+1. **Agent 管理**：查看所有已注册的Agent节点，包括状态、集群信息等
+2. **任务创建**：选择Agent、任务类型（Shell/SQL/K8s等），输入命令或上传文件
+3. **实时日志**：任务执行过程中实时查看日志输出
+4. **文件管理**：上传文件，一键分发到多个Agent节点
+5. **历史记录**：查看所有历史任务，支持日志回放
+
+### CLI 工具使用
 
 ```bash
 # 构建 CLI 工具
@@ -71,10 +290,13 @@ go build -o cloudctl cmd/cli/main.go
 ./cloudctl run -type shell -command "ls -la" -agent <agent-id>
 
 # 执行 SQL
-./cloudctl run -type sql -file demo.sql -agent <agent-id>
+./cloudctl run -type mysql -file demo.sql -agent <agent-id> -params '{"connection":"default"}'
 
 # 上传文件
 ./cloudctl upload -file demo.zip
+
+# 分发文件到Agent
+./cloudctl distribute -file <file-id> -agents <agent-id1>,<agent-id2>
 
 # 查看任务列表
 ./cloudctl list -resource tasks
@@ -83,31 +305,29 @@ go build -o cloudctl cmd/cli/main.go
 ./cloudctl logs -task <task-id>
 ```
 
-## 功能模块
+### API 调用示例
 
-### Agent 管理
-- 自动注册到 Cloud 端
-- 维持长连接和心跳
-- 支持多个 Agent 节点
+```bash
+# 创建任务
+curl -X POST http://localhost:8080/api/v1/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "agent-123",
+    "type": "shell",
+    "command": "ls -la /tmp"
+  }'
 
-### 任务执行
-- Shell 命令执行
-- SQL 执行（支持 MySQL/PostgreSQL）
-- Kubernetes 部署
-- HTTP API 调用
-- 文件操作
+# 查询任务
+curl http://localhost:8080/api/v1/tasks/<task-id>
 
-### 文件管理
-- 文件上传和存储
-- 文件分发到多个 Agent
-- 文件下载
+# 上传文件
+curl -X POST http://localhost:8080/api/v1/files \
+  -F "file=@demo.zip"
+```
 
-### 实时日志
-- WebSocket 流式传输
-- 任务执行过程实时显示
-- 历史日志查询
+---
 
-## 配置
+## ⚙️ 配置说明
 
 ### Agent 插件配置
 
@@ -115,81 +335,74 @@ go build -o cloudctl cmd/cli/main.go
 
 ```yaml
 plugins:
+  # Shell 命令执行器
   - type: shell
     enabled: true
     config:
-      timeout: 1800
+      timeout: 1800  # 超时时间（秒）
 
   # MySQL 执行器（使用 goInception）
   - type: mysql
     enabled: true
     config:
-      # goInception 服务地址
       goinception_url: http://localhost:4000
-      # 数据库连接配置（用于指定数据库名）
       connections:
         - name: default
           database: test
 
-  # PostgreSQL 执行器（预留，待实现）
-  # - type: postgres
-  #   enabled: false
-  #   config:
-  #     connections:
-  #       - name: default
-  #         host: localhost
-  #         port: 5432
-  #         database: test
+  # PostgreSQL 执行器
+  - type: postgres
+    enabled: true
+    config:
+      connections:
+        - name: default
+          host: localhost
+          port: 5432
+          database: test
+          username: postgres
 
-  # Redis 执行器（预留，待实现）
-  # - type: redis
-  #   enabled: false
-  #   config:
-  #     connections:
-  #       - name: default
-  #         host: localhost
-  #         port: 6379
-
-  # MongoDB 执行器（预留，待实现）
-  # - type: mongo
-  #   enabled: false
-  #   config:
-  #     connections:
-  #       - name: default
-  #         host: localhost
-  #         port: 27017
-  #         database: test
-
+  # Kubernetes 执行器
   - type: k8s
     enabled: true
     config:
-      kubeconfig: ~/.kube/config  # 可选，如果在 Pod 中运行会自动使用 in-cluster 配置
+      kubeconfig: ~/.kube/config  # 可选，Pod中自动使用in-cluster配置
       namespace: default
+
+  # HTTP API 执行器
+  - type: api
+    enabled: true
+    config:
+      timeout: 30
+      verify_ssl: true
+
+  # 文件操作执行器
+  - type: file
+    enabled: true
+    config:
+      base_path: /tmp/cloud-agent
 ```
 
-**注意**：
+**配置说明**：
 
 1. **数据库执行器**：
-   - **MySQL**：使用 goInception 提供 SQL 审核、执行、备份和回滚功能
-   - **PostgreSQL/Redis/MongoDB**：预留接口，待实现
+   - **MySQL**：使用 goInception 提供SQL审核、执行、备份和回滚功能
+   - **PostgreSQL/Redis/MongoDB**：直接连接数据库执行
    - 支持通过配置文件为每种数据库类型配置多个连接
-   - 需要先部署 [goInception](https://github.com/hanchuanchuan/goInception) 服务
-   - goInception 提供 SQL 审核、执行、备份和生成回滚语句功能
-   - 配置 `goinception_url` 指向 goInception 服务地址（默认：http://localhost:4000）
-   - 支持自动备份和生成回滚 SQL
 
-2. **K8s 执行器使用 client-go SDK**：
+2. **K8s 执行器**：
    - 在 Kubernetes Pod 中运行时自动使用 in-cluster 配置
    - 在集群外运行时使用 kubeconfig 文件
    - 支持 apply YAML、get、list、delete、describe 等操作
 
-## API 文档
+---
+
+## 📚 API 文档
 
 ### Agent API
 
-- `GET /api/v1/agents` - 列出所有 Agent
-- `GET /api/v1/agents/:id` - 获取 Agent 信息
-- `GET /api/v1/agents/:id/status` - 获取 Agent 状态
+- `GET /api/v1/agents` - 列出所有Agent
+- `GET /api/v1/agents/:id` - 获取Agent信息
+- `GET /api/v1/agents/:id/status` - 获取Agent状态
 
 ### Task API
 
@@ -205,13 +418,17 @@ plugins:
 - `GET /api/v1/files` - 列出文件
 - `GET /api/v1/files/:id` - 获取文件信息
 - `GET /api/v1/files/:id/download` - 下载文件
-- `POST /api/v1/files/:id/distribute` - 分发文件
+- `POST /api/v1/files/:id/distribute` - 分发文件到Agent
 
 ### WebSocket
 
-- `WS /ws` - WebSocket 连接，用于 Agent 注册和实时日志
+- `WS /ws` - WebSocket连接，用于Agent注册和实时日志传输
 
-## 开发
+详细的API文档请参考：[API接口文档](./docs/0-cloud-API接口文档.md)
+
+---
+
+## 🛠️ 开发指南
 
 ### 项目结构
 
@@ -223,11 +440,22 @@ cloud-agent/
 │   └── cli/            # CLI 工具
 ├── internal/
 │   ├── cloud/          # Cloud 服务核心代码
+│   │   ├── server/     # HTTP/WebSocket 服务器
+│   │   ├── task/       # 任务管理
+│   │   ├── agent/      # Agent 连接管理
+│   │   └── storage/    # 数据存储层
 │   ├── agent/          # Agent 核心代码
-│   └── common/         # 共享代码
+│   │   ├── client/     # Cloud 连接客户端
+│   │   ├── executor/   # 执行器框架
+│   │   └── plugins/    # 插件实现
+│   └── common/         # 共享代码（协议、模型等）
 ├── ui/                 # React 前端
-├── configs/            # 配置文件
-├── deployments/        # 部署文件
+│   ├── src/
+│   │   ├── components/ # UI 组件
+│   │   ├── pages/      # 页面
+│   │   └── services/   # API 服务
+├── configs/            # 配置文件示例
+├── deployments/        # Docker/Helm 部署文件
 └── docs/              # 文档
 ```
 
@@ -244,10 +472,94 @@ go build -o bin/agent ./cmd/agent
 go build -o bin/cloudctl ./cmd/cli
 
 # 构建 UI
-cd ui && npm run build
+cd ui && npm install && npm run build
 ```
 
-## 许可证
+### 开发自定义执行器
+
+实现 `plugins.Executor` 接口：
+
+```go
+type Executor interface {
+    Type() common.TaskType
+    Execute(taskID string, command string, params map[string]interface{}, 
+            fileID string, logCallback LogCallback) (string, error)
+}
+```
+
+在 `configs/agent-plugins.yaml` 中注册：
+
+```yaml
+plugins:
+  - type: custom
+    enabled: true
+    config:
+      # 自定义配置
+```
+
+---
+
+## 🎯 典型使用场景
+
+### 场景1：跨地域应用发布
+
+1. 上传发布包（包含SQL、YAML、脚本）
+2. 选择多个环境的Agent节点
+3. 依次执行：SQL更新 → K8s部署 → 健康检查
+4. 实时查看每个节点的执行日志
+5. 失败节点可单独重试
+
+### 场景2：数据库批量操作
+
+1. 上传SQL脚本文件
+2. 选择目标数据库连接
+3. 通过goInception审核SQL
+4. 执行SQL并自动备份
+5. 如需回滚，使用生成的回滚SQL
+
+### 场景3：Kubernetes多集群管理
+
+1. 在不同K8s集群部署Agent
+2. Agent自动上报集群名称
+3. 在Web UI中按集群筛选Agent
+4. 统一执行K8s操作（apply、get、delete等）
+5. 实时查看Pod日志和状态
+
+---
+
+## 🔒 安全建议
+
+- **生产环境**：
+  - 启用HTTPS/WSS加密通信
+  - 配置Agent认证（Token或mTLS）
+  - 限制WebSocket来源（CheckOrigin）
+  - 使用PostgreSQL替代SQLite
+  - 配置数据库连接白名单
+
+- **权限控制**：
+  - Agent执行器配置最小权限
+  - K8s执行器使用ServiceAccount限制权限
+  - 文件操作限制在指定目录
+
+---
+
+## 📄 许可证
 
 MIT License
 
+---
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request！
+
+---
+
+## 📞 联系方式
+
+- **项目地址**：https://github.com/your-org/cloud-agent
+- **问题反馈**：https://github.com/your-org/cloud-agent/issues
+
+---
+
+**Cloud Agent** - 连接云上和云下的桥梁，给运维一个能执行一切的通道 🚀
