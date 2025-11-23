@@ -1,4 +1,4 @@
-.PHONY: build cloud agent cli ui all clean docker docker-build docker-up docker-down help
+.PHONY: build cloud agent cli cloud-ui all clean docker docker-build docker-up docker-down help
 
 # 构建目标
 build: cloud agent cli
@@ -15,11 +15,11 @@ cli:
 	@echo "Building CLI..."
 	@go build -o bin/cloudctl ./cmd/cli
 
-ui:
-	@echo "Building UI..."
-	@cd ui && npm run build
+cloud-ui:
+	@echo "Building Cloud UI..."
+	@cd cloud-ui && npm run build
 
-all: build ui
+all: build cloud-ui
 
 # Docker 相关
 docker-build:
@@ -41,7 +41,7 @@ docker-logs:
 clean:
 	@echo "Cleaning..."
 	@rm -rf bin/
-	@rm -rf ui/dist/
+	@rm -rf cloud-ui/dist/
 	@rm -rf data/
 
 # 运行
@@ -58,7 +58,7 @@ help:
 	@echo "  cloud        - Build cloud service"
 	@echo "  agent        - Build agent"
 	@echo "  cli          - Build CLI tool"
-	@echo "  ui           - Build UI"
+	@echo "  cloud-ui     - Build Cloud UI"
 	@echo "  all          - Build everything"
 	@echo "  docker-build - Build Docker images"
 	@echo "  docker-up    - Start Docker containers"

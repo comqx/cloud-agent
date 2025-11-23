@@ -45,11 +45,11 @@ tmp/
 .env
 .env.local
 
-# UI
-ui/node_modules/
-ui/dist/
-ui/.vite/
-ui/build/
+# Cloud UI
+cloud-ui/node_modules/
+cloud-ui/dist/
+cloud-ui/.vite/
+cloud-ui/build/
 
 # Build artifacts
 dist/

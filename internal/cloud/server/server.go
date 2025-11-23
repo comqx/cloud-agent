@@ -79,9 +79,9 @@ func (s *Server) setupRoutes() {
 	// WebSocket 路由
 	s.router.GET("/ws", s.handleWebSocket)
 
-	// 静态文件服务（用于 UI）
-	s.router.Static("/static", "./ui/dist")
-	s.router.StaticFile("/", "./ui/dist/index.html")
+	// 静态文件服务（用于 Cloud UI）
+	s.router.Static("/static", "./cloud-ui/dist")
+	s.router.StaticFile("/", "./cloud-ui/dist/index.html")
 }
 
 // Run 启动服务器

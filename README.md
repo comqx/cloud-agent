@@ -503,7 +503,7 @@ tiangong-deploy/
 │   │   ├── executor/   # 执行器框架
 │   │   └── plugins/    # 插件实现
 │   └── common/         # 共享代码（协议、模型等）
-├── ui/                 # React 前端
+├── cloud-ui/           # Cloud 服务前端（React）
 │   ├── src/
 │   │   ├── components/ # UI 组件
 │   │   ├── pages/      # 页面
@@ -525,8 +525,8 @@ go build -o bin/agent ./cmd/agent
 # 构建 CLI
 go build -o bin/cloudctl ./cmd/cli
 
-# 构建 UI
-cd ui && npm install && npm run build
+# 构建 Cloud UI
+cd cloud-ui && npm install && npm run build
 ```
 
 ### 开发自定义执行器
