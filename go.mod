@@ -1,4 +1,4 @@
-module github.com/cloud-agent/cloud-agent
+module github.com/tiangong-deploy/tiangong-deploy
 
 go 1.25.3
 

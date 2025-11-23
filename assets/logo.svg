@@ -1,0 +1,61 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="palaceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#e5e7eb;stop-opacity:0.7" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 天空背景 -->
+  <rect width="256" height="256" fill="url(#skyGradient)" rx="32"/>
+  
+  <!-- 云朵装饰 -->
+  <ellipse cx="60" cy="50" rx="35" ry="20" fill="url(#cloudGradient)" opacity="0.6"/>
+  <ellipse cx="196" cy="60" rx="30" ry="18" fill="url(#cloudGradient)" opacity="0.5"/>
+  <ellipse cx="40" cy="200" rx="25" ry="15" fill="url(#cloudGradient)" opacity="0.4"/>
+  <ellipse cx="220" cy="210" rx="28" ry="16" fill="url(#cloudGradient)" opacity="0.5"/>
+  
+  <!-- 天宫主体建筑 -->
+  <!-- 主殿 -->
+  <rect x="80" y="100" width="96" height="80" fill="url(#palaceGradient)" rx="4"/>
+  <rect x="88" y="108" width="80" height="64" fill="#ffffff" opacity="0.2" rx="2"/>
+  
+  <!-- 屋顶 -->
+  <polygon points="78,100 128,70 178,100" fill="#dc2626" stroke="#991b1b" stroke-width="2"/>
+  <polygon points="78,100 128,75 178,100" fill="#fbbf24" opacity="0.3"/>
+  
+  <!-- 左侧配殿 -->
+  <rect x="50" y="140" width="40" height="40" fill="url(#palaceGradient)" rx="3"/>
+  <polygon points="48,140 70,120 92,140" fill="#dc2626" stroke="#991b1b" stroke-width="1.5"/>
+  
+  <!-- 右侧配殿 -->
+  <rect x="166" y="140" width="40" height="40" fill="url(#palaceGradient)" rx="3"/>
+  <polygon points="164,140 186,120 208,140" fill="#dc2626" stroke="#991b1b" stroke-width="1.5"/>
+  
+  <!-- 柱子 -->
+  <rect x="95" y="100" width="6" height="80" fill="#f59e0b" opacity="0.8"/>
+  <rect x="155" y="100" width="6" height="80" fill="#f59e0b" opacity="0.8"/>
+  
+  <!-- 门 -->
+  <rect x="115" y="160" width="26" height="20" fill="#1e3a8a" opacity="0.8" rx="2"/>
+  <line x1="128" y1="160" x2="128" y2="180" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- 部署箭头（表示部署能力） -->
+  <path d="M 128 50 L 128 30 M 118 40 L 128 30 L 138 40" 
+        stroke="#10b981" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="30" r="8" fill="#10b981"/>
+  
+  <!-- 连接线（表示多环境连接） -->
+  <circle cx="128" cy="30" r="12" fill="none" stroke="#10b981" stroke-width="2" opacity="0.5"/>
+  <circle cx="128" cy="30" r="18" fill="none" stroke="#10b981" stroke-width="1.5" opacity="0.3"/>
+</svg>
+

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // ClickHouseExecutor ClickHouse 执行器

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 func TestNewESExecutor(t *testing.T) {

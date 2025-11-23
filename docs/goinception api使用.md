@@ -130,7 +130,7 @@ LINES TERMINATED BY '\n';
 mysqldump -h host -u user -p database_name > /tmp/backup.sql
 ```
 
-**示例**（通过 Cloud Agent 执行）:
+**示例**（通过 Tiangong Deploy 执行）:
 
 ```json
 {
@@ -160,7 +160,7 @@ SELECT * FROM table_name;
 mysql -h host -u user -p database_name < /tmp/backup.sql
 ```
 
-**示例**（通过 Cloud Agent 执行）:
+**示例**（通过 Tiangong Deploy 执行）:
 
 ```json
 {
@@ -198,7 +198,7 @@ INSERT INTO table_name (col1, col2, col3) VALUES
 (3, 'value3', 'data3');
 ```
 
-**示例**（通过 Cloud Agent 执行）:
+**示例**（通过 Tiangong Deploy 执行）:
 
 ```json
 {

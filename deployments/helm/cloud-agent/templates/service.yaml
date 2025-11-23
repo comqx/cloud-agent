@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cloud-agent.fullname" . }}-cloud
+  name: {{ include "tiangong-deploy.fullname" . }}-cloud
   labels:
-    {{- include "cloud-agent.labels" . | nindent 4 }}
+    {{- include "tiangong-deploy.labels" . | nindent 4 }}
     component: cloud
 spec:
   type: {{ .Values.cloud.service.type }}
@@ -13,6 +13,6 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "cloud-agent.selectorLabels" . | nindent 4 }}
+    {{- include "tiangong-deploy.selectorLabels" . | nindent 4 }}
     component: cloud
 

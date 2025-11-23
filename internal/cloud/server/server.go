@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/cloud-agent/cloud-agent/internal/cloud/agent"
-	"github.com/cloud-agent/cloud-agent/internal/cloud/storage"
-	"github.com/cloud-agent/cloud-agent/internal/cloud/task"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/agent"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/task"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )

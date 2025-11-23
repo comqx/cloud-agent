@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

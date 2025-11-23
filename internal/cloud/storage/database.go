@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

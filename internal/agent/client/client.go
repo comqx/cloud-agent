@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"github.com/gorilla/websocket"
 )
 

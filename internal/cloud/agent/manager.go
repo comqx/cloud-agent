@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
-	"github.com/cloud-agent/cloud-agent/internal/cloud/storage"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
 )
 
 // Manager Agent 管理器

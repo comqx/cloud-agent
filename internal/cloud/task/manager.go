@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/cloud/agent"
-	"github.com/cloud-agent/cloud-agent/internal/cloud/storage"
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/agent"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"github.com/google/uuid"
 )
 

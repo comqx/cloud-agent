@@ -1,48 +1,93 @@
-# Cloud Agent
+# Tiangong Deploy
 
-> 一个面向运维的低门槛混合云远程管控开源项目
+> 一个开源的混合云软件部署与远程管控平台，对标 Palantir Apollo
 
-**Cloud Agent** 是一个开箱即用的混合云远程执行与发布系统，支持文件分发、SQL执行、命令执行、Kubernetes部署和实时日志回传，零开发成本，面向运维人员，像用FTP一样简单。
+**Tiangong Deploy** 是一个开源的混合云软件部署与远程管控平台，让开发者一次编写代码，即可安全、合规地部署到任何环境（公有云、私有云、混合云、边缘节点），无需关心基础设施的复杂性和环境差异。
+
+> 参考：[Palantir Apollo](https://www.palantir.com/docs/apollo/core/introduction/) - 一个可扩展、可扩展的平台，用于管理和部署软件，编码了操作最佳实践
 
 ---
 
-## 🎯 项目价值：解决不同角色的核心问题
+## 🎯 核心目标
 
-### 👨‍💼 传统运维人员
-**痛点**：
-- 需要在多个服务器上执行SQL、部署应用、查看日志
-- 不熟悉开发，无法编写自动化脚本
-- 跨地域、跨环境操作复杂，容易出错
+### Write Once, Deploy Anywhere（一次编写，随处部署）
 
-**解决方案**：
-- ✅ 零代码操作：通过Web界面或CLI，点几下就能完成所有操作
-- ✅ 统一入口：一个平台管理所有Agent节点，无需记忆多套工具
-- ✅ 实时反馈：执行过程实时显示日志，失败可立即重试
-- ✅ 文件分发：上传一次文件，自动分发到多个节点
+开发者只需编写一次代码，无需关心如何到达所有环境。Tiangong Deploy 自动处理不同环境的配置差异、网络限制、安全策略等复杂性，让开发者专注于业务逻辑创新。
+
+### 统一的多环境管理
+
+无论环境位置或连接状态如何，都能统一管理。支持：
+- **连接环境**：公有云、私有云、混合云
+- **断开连接环境**：Air-gapped、边缘节点
+- **混合环境**：跨地域、跨云的多环境组合
+
+### 合规感知的变更管理
+
+内置变更审批流程，防止未授权变更。完整的审计跟踪，满足合规要求（如等保、ISO 27001等）。支持维护窗口、变更抑制等合规控制。
+
+---
+
+## 👥 解决不同角色的核心问题
+
+### 👨‍💻 开发者（Developers）
+
+**核心痛点**：
+- **环境碎片化**：需要为不同环境编写不同的部署脚本，维护成本高
+- **部署复杂性**：需要了解每个环境的特殊要求（K8s版本、网络策略等）
+- **发布流程繁琐**：需要手动选择目标环境，缺乏自动化推广机制
+- **缺乏约束管理**：无法定义跨服务依赖、数据库版本要求等约束
+
+**Tiangong Deploy 解决方案**：
+- ✅ **统一部署模型**：所有环境使用相同的部署接口，自动适配环境差异
+- ✅ **发布渠道机制**：定义 RELEASE → CANARY → STABLE 等渠道，环境自动订阅
+- ✅ **约束引擎**：开发者定义产品约束，环境定义环境约束，系统自动协调
+- ✅ **一次编写**：开发者只需关注代码，部署由平台自动处理
+
+---
+
+### 👨‍💼 环境操作者 / 运维人员（Environment Operators）
+
+**核心痛点**：
+- **多环境管理困难**：需要管理多个环境，每个环境可能有不同的工具和流程
+- **变更风险控制**：缺乏统一的变更审批流程，变更历史难以追溯
+- **部署操作复杂**：需要手动执行 SQL、K8s 部署、文件分发等操作
+- **合规要求**：需要满足等保、ISO 27001 等合规要求
+
+**Tiangong Deploy 解决方案**：
+- ✅ **统一控制面板**：一个界面管理所有环境，实时查看部署状态
+- ✅ **变更管理**：定义审批流程、维护窗口、变更抑制规则
+- ✅ **零代码操作**：通过 Web UI 或 CLI 完成所有操作，无需编写脚本
+- ✅ **完整审计**：所有变更自动记录，支持审计和追溯
+- ✅ **环境订阅**：环境订阅合适的发布渠道，自动接收符合条件的发布
 
 ### 🔧 SRE/DevOps 工程师
-**痛点**：
-- 需要集成多种工具（Ansible、Kubectl、数据库客户端等）
-- 跨云、跨地域的统一管控困难
-- 缺乏统一的审计和日志追溯
 
-**解决方案**：
-- ✅ 统一执行模型：所有操作都通过任务系统，支持API调用和自动化集成
-- ✅ 插件化架构：SQL、K8s、Shell、API调用都作为插件，易于扩展
-- ✅ 完整审计：所有操作记录可追溯，支持历史回放
-- ✅ 多集群管理：Agent自动上报集群信息，支持多K8s集群统一管理
+**核心痛点**：
+- **工具集成复杂**：需要集成 Ansible、Kubectl、数据库客户端等多种工具
+- **跨环境自动化困难**：不同环境的网络、认证、权限差异导致自动化脚本复杂
+- **可观测性不足**：部署过程缺乏实时可见性，问题定位困难
+- **扩展性限制**：现有工具难以扩展新的执行器类型
 
-### 👨‍💻 研发团队
-**痛点**：
-- 需要将远程执行能力集成到现有平台
-- 需要支持自定义执行器和工作流
-- 需要Webhook和API集成能力
+**Tiangong Deploy 解决方案**：
+- ✅ **插件化架构**：统一的 Executor 接口，易于扩展新的执行器类型
+- ✅ **统一执行模型**：所有操作都通过任务系统，支持 API 调用和自动化集成
+- ✅ **实时可观测性**：WebSocket 实时日志流，支持与 Prometheus、DataDog 等监控工具集成
+- ✅ **灵活扩展**：支持自定义执行器、工作流、约束条件
 
-**解决方案**：
-- ✅ RESTful API：完整的API接口，支持深度集成
-- ✅ 插件开发：统一的Executor接口，易于开发自定义执行器
-- ✅ WebSocket支持：实时日志流式传输，支持自定义消息协议
-- ✅ CLI工具：支持脚本化和CI/CD集成
+---
+
+### 🔒 安全与合规团队（Security & Compliance）
+
+**核心痛点**：
+- **变更控制不足**：无法防止未授权的变更，缺乏变更审批流程
+- **审计困难**：变更记录分散，缺乏统一的审计日志
+- **安全策略执行**：无法统一执行安全策略，缺乏环境隔离和权限控制
+
+**Tiangong Deploy 解决方案**：
+- ✅ **变更审批**：集成身份提供商（SAML），定义审批流程和授权审批人
+- ✅ **完整审计**：所有变更自动记录，支持审计查询和报告
+- ✅ **权限控制**：基于角色的访问控制（RBAC），支持环境级别的权限隔离
+- ✅ **合规框架**：内置合规控制机制，支持等保、ISO 27001 等要求
 
 ---
 
@@ -171,45 +216,54 @@ sequenceDiagram
 
 ## ✨ 核心特性
 
-### 🚀 零开发成本
-- 只需部署 Cloud + Agent，即可在网页/CLI上完成各种操作
-- 无需编写代码，上传文件、点击执行即可
+### 🚀 Write Once, Deploy Anywhere
+- 开发者只需编写一次代码，无需关心如何到达所有环境
+- 自动处理不同环境的配置差异、网络限制、安全策略
+- 支持公有云、私有云、混合云、边缘节点、Air-gapped 环境
 
-### 📦 统一执行模型
-- 所有操作都通过统一的任务系统：**任务创建 → Agent执行 → 实时日志返回**
-- 支持文件上传、SQL执行、远程命令、API调用、Kubernetes部署等
+### 📦 统一的多环境管理
+- 单一控制面板管理所有环境，无论位置或连接状态
+- 支持连接环境、断开连接环境（air-gapped）、混合环境
+- 实时查看所有环境的部署状态和健康情况
 
-### 🔗 长连接管理
-- Agent自动注册到Cloud，维持WebSocket长连接
-- 支持心跳检测，自动重连
-- 每个Agent具备唯一ID，可被精确寻址执行任务
+### 🔄 发布渠道机制（Release Channels）
+- 定义发布渠道（如 RELEASE、CANARY、STABLE）
+- 环境订阅合适的发布渠道，自动接收符合条件的发布
+- 自动推广机制：满足条件后自动推广到下一个渠道
 
-### 👀 实时可见
-- 执行过程实时显示日志（WebSocket流式传输）
-- 任务状态实时更新（pending → running → success/failed）
-- 失败任务可立即重试
+### 🛡️ 合规感知的变更管理
+- 内置变更审批流程，防止未授权变更
+- 完整的审计跟踪，满足合规要求（等保、ISO 27001等）
+- 支持维护窗口、变更抑制等合规控制
+- 基于角色的访问控制（RBAC）
 
-### 🧩 插件式扩展
-- SQL、K8s、Shell、API调用都作为插件实现
-- 统一的Executor接口，易于开发自定义执行器
-- 通过YAML配置文件动态加载插件
+### 🧩 插件式扩展架构
+- 统一的 Executor 接口，易于开发自定义执行器
+- 支持 Shell、SQL、K8s、API、文件操作等多种执行器
+- 通过 YAML 配置文件动态加载插件
+- 支持多数据库类型（MySQL、PostgreSQL、Redis、MongoDB等）
 
-### ☸️ K8s 原生支持
+### ☸️ Kubernetes 原生支持
 - 使用 `client-go` SDK 直接操作 Kubernetes
 - 支持 in-cluster 配置（在Pod中自动使用）
 - 支持 kubeconfig 文件配置（集群外运行）
 - Agent自动上报所在K8s集群名称，便于多集群管理
+
+### 👀 实时可观测性
+- WebSocket 实时日志流式传输
+- 任务状态实时更新（pending → running → success/failed）
+- 支持与 Prometheus、DataDog 等监控工具集成
+- 完整的操作历史记录和日志回放
 
 ### 🔍 SQL 审核与执行
 - 集成 [goInception](https://github.com/hanchuanchuan/goInception)，提供SQL审核功能
 - 支持SQL执行、自动备份、生成回滚语句
 - 支持MySQL、PostgreSQL等多种数据库
 
-### 📊 多数据库支持
-- **关系型数据库**：MySQL（goInception）、PostgreSQL
-- **NoSQL数据库**：Redis、MongoDB
-- **分析型数据库**：Elasticsearch、ClickHouse、Doris
-- 统一的数据库执行器接口，易于扩展新数据库类型
+### 📊 约束引擎（规划中）
+- 开发者定义产品约束（依赖、版本要求等）
+- 环境定义环境约束（维护窗口、变更限制等）
+- 系统自动协调约束，确保安全部署
 
 ---
 
@@ -230,7 +284,7 @@ sequenceDiagram
 ```bash
 # 克隆项目
 git clone <repository-url>
-cd cloud-agent
+cd tiangong-deploy
 
 # 启动服务
 docker-compose -f deployments/docker-compose.yml up -d
@@ -265,7 +319,7 @@ go run cmd/agent/main.go -cloud http://localhost:8080 -name my-agent
 
 ```bash
 # 使用 Helm Chart 部署
-helm install cloud-agent ./deployments/helm/cloud-agent
+helm install tiangong-deploy ./deployments/helm/tiangong-deploy
 ```
 
 ---
@@ -379,7 +433,7 @@ plugins:
   - type: file
     enabled: true
     config:
-      base_path: /tmp/cloud-agent
+      base_path: /tmp/tiangong-deploy
 ```
 
 **配置说明**：
@@ -433,7 +487,7 @@ plugins:
 ### 项目结构
 
 ```
-cloud-agent/
+tiangong-deploy/
 ├── cmd/
 │   ├── cloud/          # Cloud 服务入口
 │   ├── agent/          # Agent 服务入口
@@ -557,9 +611,21 @@ MIT License
 
 ## 📞 联系方式
 
-- **项目地址**：https://github.com/your-org/cloud-agent
-- **问题反馈**：https://github.com/your-org/cloud-agent/issues
+- **项目地址**：https://github.com/tiangong-deploy/tiangong-deploy
+- **问题反馈**：https://github.com/comqx/tiangong-deploy/issues
 
 ---
 
-**Cloud Agent** - 连接云上和云下的桥梁，给运维一个能执行一切的通道 🚀
+## 📚 相关文档
+
+- [核心目标与角色痛点分析](./docs/3-核心目标与角色痛点分析.md) - 详细分析各角色的痛点和解决方案
+- [API 接口文档](./docs/0-cloud-API接口文档.md) - 完整的 API 接口说明
+- [项目需求和功能要求](./docs/1-项目需求和功能要求.md) - 项目需求文档
+
+## 🔗 参考
+
+- [Palantir Apollo](https://www.palantir.com/docs/apollo/core/introduction/) - Tiangong Deploy 对标的商业产品
+
+---
+
+**Tiangong Deploy** - 一次编写，随处部署。让开发者专注于创新，而不是基础设施的复杂性 🚀

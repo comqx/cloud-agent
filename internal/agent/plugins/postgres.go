@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 

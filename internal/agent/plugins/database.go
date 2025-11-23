@@ -3,7 +3,7 @@ package plugins
 import (
 	"fmt"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // DatabaseExecutor 数据库执行器接口

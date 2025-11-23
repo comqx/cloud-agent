@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // FileExecutor 文件操作执行器

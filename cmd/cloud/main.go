@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cloud-agent/cloud-agent/internal/cloud/server"
-	"github.com/cloud-agent/cloud-agent/internal/cloud/storage"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/server"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
 )
 
 func main() {

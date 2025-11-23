@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // goInceptionRequest goInception 请求结构

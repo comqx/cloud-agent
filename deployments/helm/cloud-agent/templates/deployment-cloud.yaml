@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "cloud-agent.fullname" . }}-cloud
+  name: {{ include "tiangong-deploy.fullname" . }}-cloud
   labels:
-    {{- include "cloud-agent.labels" . | nindent 4 }}
+    {{- include "tiangong-deploy.labels" . | nindent 4 }}
     component: cloud
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "cloud-agent.selectorLabels" . | nindent 6 }}
+      {{- include "tiangong-deploy.selectorLabels" . | nindent 6 }}
       component: cloud
   template:
     metadata:
       labels:
-        {{- include "cloud-agent.selectorLabels" . | nindent 8 }}
+        {{- include "tiangong-deploy.selectorLabels" . | nindent 8 }}
         component: cloud
     spec:
       containers:
@@ -39,7 +39,7 @@ spec:
       - name: data
         {{- if .Values.cloud.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "cloud-agent.fullname" . }}-cloud-data
+          claimName: {{ include "tiangong-deploy.fullname" . }}-cloud-data
         {{- else }}
         emptyDir: {}
         {{- end }}

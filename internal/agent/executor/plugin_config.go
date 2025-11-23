@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloud-agent/cloud-agent/internal/agent/plugins"
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/agent/plugins"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"gopkg.in/yaml.v3"
 )
 

@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // LogCallback 日志回调函数

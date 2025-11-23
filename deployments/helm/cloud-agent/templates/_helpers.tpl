@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "cloud-agent.name" -}}
+{{- define "tiangong-deploy.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "cloud-agent.fullname" -}}
+{{- define "tiangong-deploy.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "cloud-agent.chart" -}}
+{{- define "tiangong-deploy.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "cloud-agent.labels" -}}
-helm.sh/chart: {{ include "cloud-agent.chart" . }}
-{{ include "cloud-agent.selectorLabels" . }}
+{{- define "tiangong-deploy.labels" -}}
+helm.sh/chart: {{ include "tiangong-deploy.chart" . }}
+{{ include "tiangong-deploy.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,8 +43,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "cloud-agent.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "cloud-agent.name" . }}
+{{- define "tiangong-deploy.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "tiangong-deploy.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 

@@ -1,0 +1,26 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- 简化版图标，适合小尺寸显示 -->
+  <defs>
+    <linearGradient id="iconSky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="iconPalace" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="128" height="128" fill="url(#iconSky)" rx="16"/>
+  
+  <!-- 天宫建筑 -->
+  <rect x="40" y="50" width="48" height="40" fill="url(#iconPalace)" rx="2"/>
+  <polygon points="38,50 64,35 90,50" fill="#dc2626"/>
+  
+  <!-- 部署箭头 -->
+  <path d="M 64 25 L 64 15 M 58 20 L 64 15 L 70 20" 
+        stroke="#10b981" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="64" cy="15" r="5" fill="#10b981"/>
+</svg>
+

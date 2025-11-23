@@ -3,7 +3,7 @@ package plugins
 import (
 	"testing"
 
-	"github.com/cloud-agent/cloud-agent/internal/common"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 func TestNewDorisExecutor(t *testing.T) {
