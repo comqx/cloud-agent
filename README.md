@@ -611,7 +611,7 @@ MIT License
 
 ## 📞 联系方式
 
-- **项目地址**：https://github.com/tiangong-deploy/tiangong-deploy
+- **项目地址**：https://github.com/comqx/tiangong-deploy
 - **问题反馈**：https://github.com/comqx/tiangong-deploy/issues
 
 ---

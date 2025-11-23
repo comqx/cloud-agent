@@ -41,6 +41,6 @@ volumes:
   agent-data:
 
 networks:
-  cloud-agent:
+  tiangong-deploy:
     driver: bridge
 
