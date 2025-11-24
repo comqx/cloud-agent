@@ -97,14 +97,30 @@
 
 ```mermaid
 graph TB
-    subgraph "云上 Cloud Server"
-        UI[Web UI<br/>React + TypeScript]
-        API[REST API<br/>Gin Framework]
+    subgraph "前端层"
+        UI[Tiangong Deploy UI<br/>React + TypeScript<br/>控制台界面]
+    end
+
+    subgraph "业务服务层"
+        Service[Tiangong Deploy Service<br/>Gin + GORM<br/>业务逻辑核心]
+        ServiceAPI[REST API<br/>业务接口]
+        ServiceAuth[权限控制<br/>RBAC]
+        ServiceBiz[业务逻辑<br/>发布/部署/变更]
+    end
+
+    subgraph "执行服务层"
+        Cloud[Cloud Server<br/>Gin Framework<br/>任务执行引擎]
+        CloudAPI[REST API<br/>执行接口]
         WS[WebSocket Server<br/>实时通信]
         TaskMgr[任务管理器<br/>Task Manager]
         AgentMgr[Agent管理器<br/>Agent Manager]
         FileStorage[文件存储<br/>File Storage]
-        DB[(SQLite/PostgreSQL<br/>数据存储)]
+    end
+
+    subgraph "数据层"
+        DB[(MySQL/PostgreSQL<br/>共享数据库)]
+        DB_Service[业务数据表<br/>environments/products/releases等]
+        DB_Cloud[执行数据表<br/>agents/tasks/logs/files等]
     end
 
     subgraph "云下 Agent 节点"
@@ -130,13 +146,20 @@ graph TB
         K8sAPI[Kubernetes API<br/>集群操作]
     end
 
-    UI --> API
-    UI --> WS
-    API --> TaskMgr
-    API --> AgentMgr
-    API --> FileStorage
-    TaskMgr --> DB
-    AgentMgr --> DB
+    UI -->|REST API| ServiceAPI
+    ServiceAPI --> ServiceAuth
+    ServiceAPI --> ServiceBiz
+    ServiceBiz -->|查询数据| DB_Service
+    ServiceBiz -->|查询数据| DB_Cloud
+    ServiceBiz -->|执行操作| CloudAPI
+    ServiceBiz --> DB
+
+    CloudAPI --> TaskMgr
+    CloudAPI --> AgentMgr
+    CloudAPI --> FileStorage
+    TaskMgr --> DB_Cloud
+    AgentMgr --> DB_Cloud
+    FileStorage --> DB_Cloud
     WS --> AgentMgr
 
     WS <-->|WebSocket<br/>长连接| Client
@@ -156,24 +179,49 @@ graph TB
     AgentMgr -.->|任务派发| Agent2
     AgentMgr -.->|任务派发| Agent3
 
+    DB_Service -.-> DB
+    DB_Cloud -.-> DB
+
     style UI fill:#e1f5ff
-    style API fill:#e1f5ff
-    style WS fill:#e1f5ff
-    style Agent1 fill:#fff4e1
-    style Agent2 fill:#fff4e1
-    style Agent3 fill:#fff4e1
-    style Plugins fill:#e8f5e9
+    style Service fill:#fff4e1
+    style ServiceAPI fill:#fff4e1
+    style Cloud fill:#e8f5e9
+    style CloudAPI fill:#e8f5e9
+    style WS fill:#e8f5e9
+    style Agent1 fill:#ffebee
+    style Agent2 fill:#ffebee
+    style Agent3 fill:#ffebee
+    style Plugins fill:#f3e5f5
+    style DB fill:#e0f2f1
 ```
 
 ### 核心组件说明
 
-#### Cloud Server（云上控制中心）
-- **Web UI**：基于React的现代化界面，支持任务创建、文件上传、实时日志查看
-- **REST API**：完整的RESTful接口，支持第三方集成
-- **WebSocket Server**：与Agent保持长连接，实现实时双向通信
-- **任务管理器**：任务创建、派发、状态跟踪、日志收集
-- **Agent管理器**：Agent注册、心跳监控、连接管理
-- **文件存储**：文件上传、存储、分发管理
+#### Tiangong Deploy UI（前端控制台）
+- **技术栈**：React 18 + TypeScript + Vite + Ant Design
+- **功能模块**：11个一级菜单（概览、环境、产品、发布部署、任务、Agent、变更、审计、配置、监控、系统管理）
+- **通信方式**：REST API 调用 Service 层，WebSocket 连接 Cloud 层获取实时日志
+
+#### Tiangong Deploy Service（业务服务层）
+- **技术栈**：Go + Gin + GORM
+- **核心职责**：
+  - **业务数据管理**：管理环境、产品、发布、部署、变更、用户、权限等核心业务数据
+  - **业务逻辑处理**：实现发布审批、变更流转、配置同步、合规检查等复杂业务逻辑
+  - **数据查询与聚合**：直接查询数据库（Agent、Task、Log等），减少RPC开销
+  - **操作代理**：对于需要触发动作的操作（执行任务、分发文件），通过API调用Cloud服务
+  - **权限控制**：实现基于RBAC的细粒度权限控制
+- **数据访问策略**：
+  - **读操作**：直接查询共享数据库（减少延迟）
+  - **写/执行操作**：通过REST API调用Cloud服务（确保WebSocket推送和任务调度）
+
+#### Cloud Server（执行服务层）
+- **技术栈**：Go + Gin + WebSocket
+- **核心职责**：
+  - **任务执行引擎**：任务创建、派发、状态跟踪、日志收集
+  - **Agent管理**：Agent注册、心跳监控、连接管理
+  - **文件存储**：文件上传、存储、分发管理
+  - **WebSocket服务**：与Agent保持长连接，实现实时双向通信
+- **数据存储**：Agent、Task、Log、File等执行相关数据
 
 #### Agent（云下执行节点）
 - **WebSocket Client**：自动连接到Cloud，维持长连接和心跳
@@ -190,7 +238,8 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant U as 用户/API
+    participant U as 用户/UI
+    participant S as Tiangong Deploy Service
     participant C as Cloud Server
     participant A as Agent
 
@@ -198,9 +247,14 @@ sequenceDiagram
     A->>C: WebSocket连接
     A->>C: 注册消息（Agent ID、集群信息等）
     C->>A: 注册成功响应
+    C->>S: 更新Agent状态（数据库）
 
-    Note over U: 用户创建任务
-    U->>C: POST /api/v1/tasks
+    Note over U: 用户创建部署任务
+    U->>S: POST /api/v1/deployments/:id/execute
+    S->>S: 权限校验
+    S->>S: 读取Deployment配置
+    S->>S: 生成Task定义
+    S->>C: POST /api/v1/tasks (调用Cloud API)
     C->>C: 保存任务到数据库
     C->>A: 通过WebSocket发送任务
     A->>A: 执行器执行任务
@@ -208,8 +262,10 @@ sequenceDiagram
     C->>U: 实时日志推送（WebSocket）
     A->>C: 任务完成通知
     C->>C: 更新任务状态
-    U->>C: GET /api/v1/tasks/:id
-    C->>U: 返回任务结果
+    S->>S: 轮询/Webhook更新Deployment状态
+    U->>S: GET /api/v1/deployments/:id
+    S->>S: 查询数据库（Deployment + Task）
+    S->>U: 返回部署结果
 ```
 
 ---
@@ -272,7 +328,9 @@ sequenceDiagram
 ### 前置要求
 
 - **Go 1.21+**
-- **goInception 服务**（SQL执行器需要）
+- **Node.js 18+**（前端开发需要）
+- **MySQL 8.0+ 或 PostgreSQL 13+**（生产环境推荐，开发环境可用 SQLite）
+- **goInception 服务**（SQL执行器需要，可选）
   ```bash
   # 下载并启动 goInception
   docker pull hanchuanchuan/goinception
@@ -295,13 +353,37 @@ docker-compose -f deployments/docker-compose.yml logs -f
 
 ### 方式二：手动部署
 
-#### 1. 启动 Cloud 服务
+#### 1. 启动数据库（MySQL/PostgreSQL）
 
 ```bash
-go run cmd/cloud/main.go -addr :8080 -db ./data/cloud.db -storage ./data/files
+# 使用 Docker 启动 MySQL（示例）
+docker run -d \
+  --name tiangong-mysql \
+  -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=tiangong_deploy \
+  -p 3306:3306 \
+  mysql:8.0
 ```
 
-#### 2. 启动 Agent
+#### 2. 启动 Cloud 服务（执行引擎）
+
+```bash
+go run cmd/cloud/main.go \
+  -addr :8080 \
+  -db "mysql://user:password@localhost:3306/tiangong_deploy" \
+  -storage ./data/files
+```
+
+#### 3. 启动 Tiangong Deploy Service（业务服务）
+
+```bash
+go run cmd/service/main.go \
+  -addr :8081 \
+  -db "mysql://user:password@localhost:3306/tiangong_deploy" \
+  -cloud-url http://localhost:8080
+```
+
+#### 4. 启动 Agent
 
 ```bash
 # 设置 K8s 集群名称（可选）
@@ -311,9 +393,18 @@ export K8S_CLUSTER_NAME=production
 go run cmd/agent/main.go -cloud http://localhost:8080 -name my-agent
 ```
 
-#### 3. 访问 Web UI
+#### 5. 启动前端 UI
 
-打开浏览器访问：http://localhost:8080
+```bash
+cd tiangong-deploy-ui
+npm install
+npm run dev
+```
+
+#### 6. 访问 Web UI
+
+打开浏览器访问：http://localhost:5173（前端开发服务器）  
+或访问：http://localhost:8081（Service 服务，如果配置了静态文件服务）
 
 ### 方式三：Kubernetes 部署
 
@@ -452,33 +543,65 @@ plugins:
 
 ## 📚 API 文档
 
-### Agent API
+### Tiangong Deploy Service API（业务接口）
 
-- `GET /api/v1/agents` - 列出所有Agent
+#### 环境管理
+- `GET /api/v1/environments` - 获取环境列表
+- `GET /api/v1/environments/:id` - 获取环境详情
+- `POST /api/v1/environments` - 创建环境
+- `PUT /api/v1/environments/:id` - 更新环境
+- `DELETE /api/v1/environments/:id` - 删除环境
+
+#### 产品管理
+- `GET /api/v1/products` - 获取产品列表
+- `GET /api/v1/products/:id` - 获取产品详情
+- `POST /api/v1/products` - 创建产品
+- `GET /api/v1/products/:id/versions` - 获取产品版本列表
+
+#### 发布与部署
+- `GET /api/v1/releases` - 发布列表
+- `POST /api/v1/releases` - 创建发布
+- `POST /api/v1/releases/:id/approve` - 审批发布
+- `GET /api/v1/deployments` - 部署列表
+- `POST /api/v1/deployments` - 创建部署计划
+- `POST /api/v1/deployments/:id/execute` - 执行部署
+- `POST /api/v1/deployments/:id/rollback` - 回滚部署
+
+#### 变更管理
+- `GET /api/v1/changes` - 变更列表
+- `POST /api/v1/changes` - 创建变更请求
+- `POST /api/v1/changes/:id/approve` - 审批变更
+- `POST /api/v1/changes/:id/execute` - 执行变更
+
+#### 审计日志
+- `GET /api/v1/audit-logs` - 查询审计日志
+- `GET /api/v1/audit-logs/export` - 导出审计日志
+
+### Cloud Server API（执行接口）
+
+#### Agent API
+- `GET /api/v1/agents` - 列出所有Agent（Service层直接查询数据库）
 - `GET /api/v1/agents/:id` - 获取Agent信息
-- `GET /api/v1/agents/:id/status` - 获取Agent状态
 
-### Task API
-
-- `POST /api/v1/tasks` - 创建任务
-- `GET /api/v1/tasks` - 列出任务
+#### Task API
+- `POST /api/v1/tasks` - 创建任务（Service层调用此接口）
+- `GET /api/v1/tasks` - 列出任务（Service层直接查询数据库）
 - `GET /api/v1/tasks/:id` - 获取任务信息
 - `GET /api/v1/tasks/:id/logs` - 获取任务日志
-- `POST /api/v1/tasks/:id/cancel` - 取消任务
 
-### File API
-
-- `POST /api/v1/files` - 上传文件
-- `GET /api/v1/files` - 列出文件
-- `GET /api/v1/files/:id` - 获取文件信息
+#### File API
+- `POST /api/v1/files` - 上传文件（Service层调用此接口）
+- `GET /api/v1/files` - 列出文件（Service层直接查询数据库）
 - `GET /api/v1/files/:id/download` - 下载文件
 - `POST /api/v1/files/:id/distribute` - 分发文件到Agent
 
 ### WebSocket
 
-- `WS /ws` - WebSocket连接，用于Agent注册和实时日志传输
+- `WS /ws` - WebSocket连接（Cloud Server），用于Agent注册和实时日志传输
 
-详细的API文档请参考：[API接口文档](./docs/0-cloud-API接口文档.md)
+详细的API文档请参考：
+- [Cloud API接口文档](./docs/0-cloud-API接口文档.md)
+- [Service设计方案](./docs/5-tiangong-deploy-service设计方案.md)
 
 ---
 
@@ -489,25 +612,36 @@ plugins:
 ```
 tiangong-deploy/
 ├── cmd/
-│   ├── cloud/          # Cloud 服务入口
+│   ├── cloud/          # Cloud 服务入口（执行引擎）
 │   ├── agent/          # Agent 服务入口
+│   ├── service/        # Tiangong Deploy Service 入口（业务服务）
 │   └── cli/            # CLI 工具
 ├── internal/
-│   ├── cloud/          # Cloud 服务核心代码
+│   ├── cloud/          # Cloud 服务核心代码（执行层）
 │   │   ├── server/     # HTTP/WebSocket 服务器
 │   │   ├── task/       # 任务管理
 │   │   ├── agent/      # Agent 连接管理
+│   │   └── storage/    # 数据存储层
+│   ├── service/         # Tiangong Deploy Service 核心代码（业务层）
+│   │   ├── server/     # HTTP 服务器
+│   │   ├── handlers/   # API 处理器
+│   │   ├── models/      # 数据模型
+│   │   ├── services/   # 业务逻辑服务
+│   │   ├── middleware/  # 中间件（权限、审计等）
 │   │   └── storage/    # 数据存储层
 │   ├── agent/          # Agent 核心代码
 │   │   ├── client/     # Cloud 连接客户端
 │   │   ├── executor/   # 执行器框架
 │   │   └── plugins/    # 插件实现
 │   └── common/         # 共享代码（协议、模型等）
-├── cloud-ui/           # Cloud 服务前端（React）
+├── tiangong-deploy-ui/ # 前端控制台（React）
 │   ├── src/
 │   │   ├── components/ # UI 组件
-│   │   ├── pages/      # 页面
-│   │   └── services/   # API 服务
+│   │   ├── pages/      # 页面（11个一级菜单）
+│   │   ├── services/   # API 服务
+│   │   └── types/      # TypeScript 类型定义
+│   └── package.json
+├── cloud-ui/           # 旧版简单UI（保留兼容）
 ├── configs/            # 配置文件示例
 ├── deployments/        # Docker/Helm 部署文件
 └── docs/              # 文档
@@ -516,8 +650,11 @@ tiangong-deploy/
 ### 构建
 
 ```bash
-# 构建 Cloud
+# 构建 Cloud（执行引擎）
 go build -o bin/cloud ./cmd/cloud
+
+# 构建 Service（业务服务）
+go build -o bin/service ./cmd/service
 
 # 构建 Agent
 go build -o bin/agent ./cmd/agent
@@ -525,8 +662,8 @@ go build -o bin/agent ./cmd/agent
 # 构建 CLI
 go build -o bin/cloudctl ./cmd/cli
 
-# 构建 Cloud UI
-cd cloud-ui && npm install && npm run build
+# 构建前端 UI
+cd tiangong-deploy-ui && npm install && npm run build
 ```
 
 ### 开发自定义执行器
@@ -619,7 +756,10 @@ MIT License
 ## 📚 相关文档
 
 - [核心目标与角色痛点分析](./docs/3-核心目标与角色痛点分析.md) - 详细分析各角色的痛点和解决方案
-- [API 接口文档](./docs/0-cloud-API接口文档.md) - 完整的 API 接口说明
+- [Tiangong Deploy UI 模块设计](./docs/4-tiangong-deploy-ui模块设计.md) - UI 模块详细设计
+- [Tiangong Deploy UI 菜单与功能设计](./docs/4-1-tiangong-deploy-ui菜单与功能详细设计.md) - UI 菜单和功能详细清单
+- [Tiangong Deploy Service 技术方案](./docs/5-tiangong-deploy-service设计方案.md) - Service 服务技术方案
+- [Cloud API 接口文档](./docs/0-cloud-API接口文档.md) - Cloud 服务 API 接口说明
 - [项目需求和功能要求](./docs/1-项目需求和功能要求.md) - 项目需求文档
 
 ## 🔗 参考
