@@ -1,109 +1,95 @@
-import { useEffect, useState } from 'react';
-import { Table, Tag, Card, Button, message, Space } from 'antd';
-import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
-import { changeAPI, Change } from '../services/api';
+import { useState, useEffect } from 'react';
+import { Table, Button, Space, Tag, Card, Steps, Timeline, Avatar } from 'antd';
+import { ReloadOutlined, CheckCircleOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { Change } from '../types';
+import { mockChanges } from '../mock/data';
+
+const { Step } = Steps;
 
 export default function Changes() {
-  const [changes, setChanges] = useState<Change[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const loadChanges = async () => {
-    setLoading(true);
-    try {
-      const res = await changeAPI.list();
-      setChanges(res.data.data);
-    } catch (error: any) {
-      message.error('加载变更列表失败: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [data, setData] = useState<Change[]>([]);
 
   useEffect(() => {
-    loadChanges();
+    setLoading(true);
+    setTimeout(() => {
+      setData(mockChanges);
+      setLoading(false);
+    }, 500);
   }, []);
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 200,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
-    },
-    {
-      title: '标题',
+      title: '变更标题',
       dataIndex: 'title',
       key: 'title',
+      render: (text: string) => <span style={{ fontWeight: 500 }}>{text}</span>,
     },
     {
       title: '类型',
       dataIndex: 'type',
       key: 'type',
-      render: (type: string) => {
-        const colorMap: Record<string, string> = {
-          deployment: 'blue',
-          configuration: 'cyan',
-          maintenance: 'orange',
-          other: 'default',
-        };
-        return <Tag color={colorMap[type]}>{type}</Tag>;
-      },
+      render: (type: string) => <Tag color="blue">{type.toUpperCase()}</Tag>,
+    },
+    {
+      title: '创建人',
+      dataIndex: 'created_by',
+      key: 'created_by',
+      render: (text: string) => <Space><UserOutlined /> {text}</Space>,
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          draft: 'default',
-          pending_approval: 'orange',
-          approved: 'success',
-          rejected: 'error',
-          executing: 'processing',
-          completed: 'success',
-          rolled_back: 'warning',
-        };
-        return <Tag color={colorMap[status]}>{status}</Tag>;
+        const color = status === 'completed' ? 'green' : status === 'pending_approval' ? 'orange' : 'red';
+        return <Tag color={color}>{status.toUpperCase()}</Tag>;
       },
-    },
-    {
-      title: '创建人',
-      dataIndex: 'created_by',
-      key: 'created_by',
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (text: string) => (text ? new Date(text).toLocaleString() : '-'),
+      render: (text: string) => new Date(text).toLocaleString(),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: any, record: Change) => (
+        <Space size="middle">
+          <a>详情</a>
+          {record.status === 'pending_approval' && <a>审批</a>}
+        </Space>
+      ),
     },
   ];
 
   return (
     <div>
-      <Card
-        title="变更管理"
-        extra={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={loadChanges} loading={loading}>
-              刷新
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />}>
-              创建变更请求
-            </Button>
-          </Space>
-        }
-      >
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+        <h1>变更管理</h1>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => setLoading(true)}>刷新</Button>
+        </Space>
+      </div>
+
+      <Card title="变更审批流" style={{ marginBottom: '24px' }}>
+        <Steps current={1}>
+          <Step title="提交变更" description="User submits change request" icon={<UserOutlined />} />
+          <Step title="自动检查" description="System runs policy checks" icon={<ClockCircleOutlined />} />
+          <Step title="人工审批" description="Manager approval required" icon={<ClockCircleOutlined />} />
+          <Step title="执行变更" description="Change applied to environment" icon={<CheckCircleOutlined />} />
+        </Steps>
+      </Card>
+
+      <Card bodyStyle={{ padding: 0 }}>
         <Table
           columns={columns}
-          dataSource={changes}
+          dataSource={data}
           rowKey="id"
           loading={loading}
-          pagination={{ pageSize: 20 }}
         />
       </Card>
     </div>
   );
 }
-

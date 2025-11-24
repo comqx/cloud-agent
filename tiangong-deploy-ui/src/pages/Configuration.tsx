@@ -1,139 +1,104 @@
-import { useEffect, useState } from 'react';
-import { Table, Card, Button, message, Space, Tabs } from 'antd';
-import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
-import { configurationAPI, type Configuration } from '../services/api';
+import { useState, useEffect } from 'react';
+import { Table, Button, Space, Tag, Card, Tabs, Input, Form, Switch, Modal } from 'antd';
+import { ReloadOutlined, SaveOutlined, HistoryOutlined, DiffOutlined } from '@ant-design/icons';
 
-export default function ConfigurationPage() {
-  const [configurations, setConfigurations] = useState<Configuration[]>([]);
+const { TabPane } = Tabs;
+const { TextArea } = Input;
+
+interface ConfigItem {
+  key: string;
+  value: string;
+  description: string;
+  updated_at: string;
+}
+
+export default function Configuration() {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('environments');
-
-  const loadConfigurations = async () => {
-    setLoading(true);
-    try {
-      const params: any = {};
-      if (activeTab === 'environments') {
-        // 加载环境配置
-      } else if (activeTab === 'products') {
-        // 加载产品配置
-      }
-      const res = await configurationAPI.list(params);
-      setConfigurations(res.data.data);
-    } catch (error: any) {
-      message.error('加载配置列表失败: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [configs, setConfigs] = useState<ConfigItem[]>([]);
 
   useEffect(() => {
-    loadConfigurations();
-  }, [activeTab]);
+    setLoading(true);
+    // Mock data
+    setTimeout(() => {
+      setConfigs([
+        { key: 'system.retention.days', value: '30', description: 'Data retention period in days', updated_at: '2023-10-01T10:00:00Z' },
+        { key: 'deploy.timeout.seconds', value: '600', description: 'Default deployment timeout', updated_at: '2023-10-02T11:30:00Z' },
+        { key: 'feature.dark_mode', value: 'true', description: 'Enable dark mode by default', updated_at: '2023-10-05T09:15:00Z' },
+        { key: 'alert.email.enabled', value: 'true', description: 'Enable email alerts', updated_at: '2023-10-05T09:15:00Z' },
+      ]);
+      setLoading(false);
+    }, 500);
+  }, []);
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 200,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
-    },
-    {
-      title: '配置键',
+      title: '配置项 Key',
       dataIndex: 'key',
       key: 'key',
+      render: (text: string) => <span style={{ fontWeight: 500 }}>{text}</span>,
     },
     {
-      title: '配置值',
+      title: '当前值',
       dataIndex: 'value',
       key: 'value',
-      ellipsis: true,
-      render: (value: any) =>
-        typeof value === 'object' ? JSON.stringify(value).substring(0, 50) : String(value).substring(0, 50),
+      render: (text: string) => <code>{text}</code>,
     },
     {
-      title: '版本',
-      dataIndex: 'version',
-      key: 'version',
-      width: 100,
+      title: '描述',
+      dataIndex: 'description',
+      key: 'description',
     },
     {
-      title: '环境',
-      dataIndex: 'environment_id',
-      key: 'environment_id',
-      width: 150,
-      render: (text: string) => (text ? <code>{text.substring(0, 8)}...</code> : '-'),
-    },
-    {
-      title: '产品',
-      dataIndex: 'product_id',
-      key: 'product_id',
-      width: 150,
-      render: (text: string) => (text ? <code>{text.substring(0, 8)}...</code> : '-'),
-    },
-    {
-      title: '更新时间',
+      title: '最后更新',
       dataIndex: 'updated_at',
       key: 'updated_at',
-      width: 180,
-      render: (text: string) => (text ? new Date(text).toLocaleString() : '-'),
+      render: (text: string) => new Date(text).toLocaleString(),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: () => (
+        <Space size="middle">
+          <a>编辑</a>
+          <a>历史</a>
+        </Space>
+      ),
     },
   ];
 
   return (
     <div>
-      <Card
-        title="配置管理"
-        extra={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={loadConfigurations} loading={loading}>
-              刷新
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />}>
-              创建配置
-            </Button>
-          </Space>
-        }
-      >
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'environments',
-              label: '环境配置',
-              children: (
-                <Table
-                  columns={columns}
-                  dataSource={configurations.filter((c) => c.environment_id)}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20 }}
-                />
-              ),
-            },
-            {
-              key: 'products',
-              label: '产品配置',
-              children: (
-                <Table
-                  columns={columns}
-                  dataSource={configurations.filter((c) => c.product_id)}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20 }}
-                />
-              ),
-            },
-            {
-              key: 'templates',
-              label: '配置模板',
-              children: <p>配置模板功能开发中...</p>,
-            },
-          ]}
-        />
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+        <h1>配置管理</h1>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => setLoading(true)}>刷新</Button>
+          <Button type="primary" icon={<SaveOutlined />}>保存更改</Button>
+        </Space>
+      </div>
+
+      <Card>
+        <Tabs defaultActiveKey="global">
+          <TabPane tab="全局配置" key="global">
+            <Table
+              columns={columns}
+              dataSource={configs}
+              rowKey="key"
+              loading={loading}
+              pagination={false}
+            />
+          </TabPane>
+          <TabPane tab="环境配置" key="env">
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+              Select an environment to view specific configurations
+            </div>
+          </TabPane>
+          <TabPane tab="应用配置" key="app">
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+              Select an application to view specific configurations
+            </div>
+          </TabPane>
+        </Tabs>
       </Card>
     </div>
   );
 }
-

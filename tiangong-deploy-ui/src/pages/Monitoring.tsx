@@ -1,229 +1,82 @@
-import { useEffect, useState } from 'react';
-import { Tabs, Table, Tag, Card, Button, message, Space } from 'antd';
-import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
-import { alertAPI, alertRuleAPI, Alert, AlertRule } from '../services/api';
+import { useState, useEffect } from 'react';
+import { Card, Row, Col, Statistic, Progress, List, Tag, Button, Space } from 'antd';
+import { ReloadOutlined, ArrowUpOutlined, ArrowDownOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
 
 export default function Monitoring() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('alerts');
-
-  const loadAlerts = async () => {
-    setLoading(true);
-    try {
-      const res = await alertAPI.list();
-      setAlerts(res.data.data);
-    } catch (error: any) {
-      message.error('加载告警列表失败: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadAlertRules = async () => {
-    setLoading(true);
-    try {
-      const res = await alertRuleAPI.list();
-      setAlertRules(res.data.data);
-    } catch (error: any) {
-      message.error('加载告警规则失败: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    if (activeTab === 'alerts') {
-      loadAlerts();
-    } else if (activeTab === 'rules') {
-      loadAlertRules();
-    }
-  }, [activeTab]);
-
-  const alertColumns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 200,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
-    },
-    {
-      title: '名称',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: '级别',
-      dataIndex: 'level',
-      key: 'level',
-      render: (level: string) => {
-        const colorMap: Record<string, string> = {
-          critical: 'red',
-          warning: 'orange',
-          info: 'blue',
-        };
-        return <Tag color={colorMap[level]}>{level}</Tag>;
-      },
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          active: 'red',
-          acknowledged: 'orange',
-          resolved: 'success',
-          ignored: 'default',
-        };
-        return <Tag color={colorMap[status]}>{status}</Tag>;
-      },
-    },
-    {
-      title: '资源类型',
-      dataIndex: 'resource_type',
-      key: 'resource_type',
-    },
-    {
-      title: '消息',
-      dataIndex: 'message',
-      key: 'message',
-      ellipsis: true,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-      render: (text: string) => (text ? new Date(text).toLocaleString() : '-'),
-    },
-  ];
-
-  const ruleColumns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 200,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
-    },
-    {
-      title: '名称',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: '资源类型',
-      dataIndex: 'resource_type',
-      key: 'resource_type',
-    },
-    {
-      title: '级别',
-      dataIndex: 'level',
-      key: 'level',
-      render: (level: string) => {
-        const colorMap: Record<string, string> = {
-          critical: 'red',
-          warning: 'orange',
-          info: 'blue',
-        };
-        return <Tag color={colorMap[level]}>{level}</Tag>;
-      },
-    },
-    {
-      title: '状态',
-      dataIndex: 'enabled',
-      key: 'enabled',
-      render: (enabled: boolean) => (
-        <Tag color={enabled ? 'success' : 'default'}>{enabled ? '启用' : '禁用'}</Tag>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: AlertRule) => (
-        <Space>
-          <Button
-            size="small"
-            onClick={async () => {
-              try {
-                await alertRuleAPI.toggle(record.id, !record.enabled);
-                message.success('操作成功');
-                loadAlertRules();
-              } catch (error: any) {
-                message.error('操作失败: ' + error.message);
-              }
-            }}
-          >
-            {record.enabled ? '禁用' : '启用'}
-          </Button>
-        </Space>
-      ),
-    },
-  ];
+    setLoading(true);
+    setTimeout(() => setLoading(false), 500);
+  }, []);
 
   return (
     <div>
-      <Card
-        title="监控告警"
-        extra={
-          <Space>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={activeTab === 'alerts' ? loadAlerts : loadAlertRules}
-              loading={loading}
-            >
-              刷新
-            </Button>
-            {activeTab === 'rules' && (
-              <Button type="primary" icon={<PlusOutlined />}>
-                创建告警规则
-              </Button>
-            )}
-          </Space>
-        }
-      >
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'alerts',
-              label: '告警管理',
-              children: (
-                <Table
-                  columns={alertColumns}
-                  dataSource={alerts}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20 }}
-                />
-              ),
-            },
-            {
-              key: 'rules',
-              label: '告警规则',
-              children: (
-                <Table
-                  columns={ruleColumns}
-                  dataSource={alertRules}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20 }}
-                />
-              ),
-            },
-            {
-              key: 'system',
-              label: '系统监控',
-              children: <p>系统监控功能开发中...</p>,
-            },
-          ]}
-        />
-      </Card>
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+        <h1>监控中心</h1>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => setLoading(true)}>刷新</Button>
+        </Space>
+      </div>
+
+      <Row gutter={16} style={{ marginBottom: '24px' }}>
+        <Col span={6}>
+          <Card>
+            <Statistic title="系统健康度" value={98.5} precision={1} suffix="%" prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />} />
+            <Progress percent={98.5} showInfo={false} strokeColor="#52c41a" size="small" />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="API 请求量 (QPS)" value={1256} prefix={<ArrowUpOutlined style={{ color: '#cf1322' }} />} />
+            <div style={{ color: '#888', fontSize: '12px', marginTop: '8px' }}>Compared to last hour</div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="平均响应时间" value={45} suffix="ms" prefix={<ArrowDownOutlined style={{ color: '#3f8600' }} />} />
+            <div style={{ color: '#888', fontSize: '12px', marginTop: '8px' }}>Optimal performance</div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="活跃告警" value={3} valueStyle={{ color: '#faad14' }} prefix={<WarningOutlined />} />
+            <div style={{ color: '#888', fontSize: '12px', marginTop: '8px' }}>2 warnings, 1 critical</div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={24}>
+        <Col span={16}>
+          <Card title="资源使用趋势">
+            <div style={{ height: '300px', background: '#f0f2f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+              [Mock Chart: CPU & Memory Usage over last 24h]
+            </div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card title="最近告警">
+            <List
+              size="small"
+              dataSource={[
+                { title: 'High CPU Usage', time: '10 mins ago', level: 'warning' },
+                { title: 'Disk Space Low', time: '1 hour ago', level: 'critical' },
+                { title: 'Service Restarted', time: '2 hours ago', level: 'info' },
+              ]}
+              renderItem={item => (
+                <List.Item>
+                  <List.Item.Meta
+                    avatar={<WarningOutlined style={{ color: item.level === 'critical' ? 'red' : item.level === 'warning' ? 'orange' : 'blue' }} />}
+                    title={item.title}
+                    description={item.time}
+                  />
+                  <Tag color={item.level === 'critical' ? 'red' : item.level === 'warning' ? 'orange' : 'blue'}>{item.level.toUpperCase()}</Tag>
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 }
-

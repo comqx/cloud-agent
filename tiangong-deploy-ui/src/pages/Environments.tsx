@@ -1,97 +1,51 @@
-import { useEffect, useState } from 'react';
-import { Table, Tag, Card, Button, message, Modal, Form, Input, Select, Space } from 'antd';
+import { useState, useEffect } from 'react';
+import { Table, Button, Space, Tag, Card, Modal, Form, Input, Select, Badge } from 'antd';
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { environmentAPI, Environment } from '../services/api';
+import { Environment } from '../types';
+import { mockEnvironments } from '../mock/data';
 
 const { Option } = Select;
 const { TextArea } = Input;
 
 export default function Environments() {
-  const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingEnv, setEditingEnv] = useState<Environment | null>(null);
+  const [data, setData] = useState<Environment[]>([]);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
 
-  const loadEnvironments = async () => {
-    setLoading(true);
-    try {
-      const res = await environmentAPI.list();
-      setEnvironments(res.data.data);
-    } catch (error: any) {
-      message.error('加载环境列表失败: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadEnvironments();
+    setLoading(true);
+    setTimeout(() => {
+      setData(mockEnvironments);
+      setLoading(false);
+    }, 500);
   }, []);
-
-  const handleCreate = () => {
-    setEditingEnv(null);
-    form.resetFields();
-    setModalVisible(true);
-  };
-
-  const handleEdit = (env: Environment) => {
-    setEditingEnv(env);
-    form.setFieldsValue(env);
-    setModalVisible(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: '确定要删除这个环境吗？',
-      onOk: async () => {
-        try {
-          await environmentAPI.delete(id);
-          message.success('删除成功');
-          loadEnvironments();
-        } catch (error: any) {
-          message.error('删除失败: ' + error.message);
-        }
-      },
-    });
-  };
-
-  const handleSubmit = async (values: any) => {
-    try {
-      if (editingEnv) {
-        await environmentAPI.update(editingEnv.id, values);
-        message.success('更新成功');
-      } else {
-        await environmentAPI.create(values);
-        message.success('创建成功');
-      }
-      setModalVisible(false);
-      loadEnvironments();
-    } catch (error: any) {
-      message.error((editingEnv ? '更新' : '创建') + '失败: ' + error.message);
-    }
-  };
 
   const columns = [
     {
-      title: '名称',
+      title: '环境名称',
       dataIndex: 'name',
       key: 'name',
+      render: (text: string, record: Environment) => (
+        <Space>
+          <span style={{ fontWeight: 500 }}>{text}</span>
+          {record.tags?.map(tag => <Tag key={tag} style={{ fontSize: '10px' }}>{tag}</Tag>)}
+        </Space>
+      ),
     },
     {
       title: '类型',
       dataIndex: 'type',
       key: 'type',
       render: (type: string) => {
-        const colorMap: Record<string, string> = {
-          development: 'blue',
-          testing: 'cyan',
-          staging: 'orange',
+        const colors: Record<string, string> = {
           production: 'red',
+          staging: 'orange',
+          testing: 'blue',
+          development: 'green',
           'air-gapped': 'purple',
         };
-        return <Tag color={colorMap[type]}>{type}</Tag>;
+        return <Tag color={colors[type]}>{type.toUpperCase()}</Tag>;
       },
     },
     {
@@ -99,12 +53,13 @@ export default function Environments() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          online: 'success',
-          offline: 'default',
-          disconnected: 'warning',
+        const statusMap: Record<string, { color: string; text: string }> = {
+          online: { color: 'success', text: '在线' },
+          offline: { color: 'error', text: '离线' },
+          disconnected: { color: 'warning', text: '断开连接' },
         };
-        return <Tag color={colorMap[status]}>{status}</Tag>;
+        const s = statusMap[status] || { color: 'default', text: status };
+        return <Badge status={s.color as any} text={s.text} />;
       },
     },
     {
@@ -112,13 +67,6 @@ export default function Environments() {
       dataIndex: 'k8s_cluster',
       key: 'k8s_cluster',
       render: (text: string) => text || '-',
-    },
-    {
-      title: '标签',
-      dataIndex: 'tags',
-      key: 'tags',
-      render: (tags: string[]) =>
-        tags?.map((tag) => <Tag key={tag}>{tag}</Tag>) || '-',
     },
     {
       title: '创建时间',
@@ -129,19 +77,10 @@ export default function Environments() {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: Environment) => (
+      render: () => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
-            编辑
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
-          >
-            删除
-          </Button>
+          <Button size="small" icon={<EditOutlined />}>编辑</Button>
+          <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
         </Space>
       ),
     },
@@ -149,22 +88,20 @@ export default function Environments() {
 
   return (
     <div>
-      <Card
-        title="环境管理"
-        extra={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={loadEnvironments} loading={loading}>
-              刷新
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              创建环境
-            </Button>
-          </Space>
-        }
-      >
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+        <h1>环境管理</h1>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => setLoading(true)}>刷新</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
+            创建环境
+          </Button>
+        </Space>
+      </div>
+
+      <Card bodyStyle={{ padding: 0 }}>
         <Table
           columns={columns}
-          dataSource={environments}
+          dataSource={data}
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 20 }}
@@ -172,13 +109,13 @@ export default function Environments() {
       </Card>
 
       <Modal
-        title={editingEnv ? '编辑环境' : '创建环境'}
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={() => form.submit()}
+        title="创建环境"
+        open={isModalVisible}
+        onCancel={() => setIsModalVisible(false)}
+        onOk={() => setIsModalVisible(false)}
         width={600}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form form={form} layout="vertical">
           <Form.Item name="name" label="名称" rules={[{ required: true }]}>
             <Input placeholder="请输入环境名称" />
           </Form.Item>
@@ -202,4 +139,3 @@ export default function Environments() {
     </div>
   );
 }
-

@@ -12,6 +12,10 @@ import Changes from './pages/Changes';
 import Audit from './pages/Audit';
 import ConfigurationPage from './pages/Configuration';
 import Monitoring from './pages/Monitoring';
+import Constraints from './pages/Constraints';
+import Compliance from './pages/Compliance';
+import Workflows from './pages/Workflows';
+import Integration from './pages/Integration';
 import System from './pages/System';
 
 function App() {
@@ -30,6 +34,10 @@ function App() {
             <Route path="/audit" element={<Audit />} />
             <Route path="/configuration" element={<ConfigurationPage />} />
             <Route path="/monitoring" element={<Monitoring />} />
+            <Route path="/constraints" element={<Constraints />} />
+            <Route path="/compliance" element={<Compliance />} />
+            <Route path="/workflows" element={<Workflows />} />
+            <Route path="/integration" element={<Integration />} />
             <Route path="/system" element={<System />} />
           </Routes>
         </Layout>

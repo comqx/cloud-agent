@@ -61,8 +61,8 @@ export default function Layout({ children }: LayoutProps) {
     },
     {
       key: '/audit',
-      icon: <SafetyOutlined />,
-      label: <Link to="/audit">审计与合规</Link>,
+      icon: <BellOutlined />, // Changed to distinguish from Compliance
+      label: <Link to="/audit">审计日志</Link>,
     },
     {
       key: '/configuration',
@@ -73,6 +73,26 @@ export default function Layout({ children }: LayoutProps) {
       key: '/monitoring',
       icon: <BellOutlined />,
       label: <Link to="/monitoring">监控告警</Link>,
+    },
+    {
+      key: '/constraints',
+      icon: <SafetyOutlined />,
+      label: <Link to="/constraints">约束策略</Link>,
+    },
+    {
+      key: '/compliance',
+      icon: <SafetyOutlined />,
+      label: <Link to="/compliance">合规审计</Link>,
+    },
+    {
+      key: '/workflows',
+      icon: <UnorderedListOutlined />,
+      label: <Link to="/workflows">工作流编排</Link>,
+    },
+    {
+      key: '/integration',
+      icon: <SwapOutlined />,
+      label: <Link to="/integration">集成中心</Link>,
     },
     {
       key: '/system',
