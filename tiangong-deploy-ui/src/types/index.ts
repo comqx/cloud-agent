@@ -397,3 +397,163 @@ export interface DashboardStats {
   };
 }
 
+// 服务相关类型（产品版本下的服务）
+export interface Service {
+  id: string;
+  product_id: string;
+  version_id: string;
+  name: string;
+  description?: string;
+  type: 'backend' | 'frontend' | 'database' | 'cache' | 'mq' | 'other';
+  status: 'running' | 'stopped' | 'error' | 'unknown';
+  replicas?: number;
+  image?: string;
+  resources?: {
+    cpu?: string;
+    memory?: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+// SQL脚本相关类型
+export interface SQLScript {
+  id: string;
+  product_id: string;
+  version_id: string;
+  name: string;
+  description?: string;
+  content: string;
+  database_type: 'mysql' | 'postgresql' | 'oracle' | 'sqlserver';
+  execution_order?: number;
+  status: 'pending' | 'executed' | 'failed';
+  executed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 部署方案相关类型
+export interface DeploymentScheme {
+  id: string;
+  product_id: string;
+  version_id: string;
+  name: string;
+  description?: string;
+  strategy: 'blue-green' | 'canary' | 'rolling';
+  config?: {
+    canary_percentage?: number;
+    rolling_batch_size?: number;
+    health_check_interval?: number;
+    rollback_on_failure?: boolean;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+// 构建相关类型
+export interface Build {
+  id: string;
+  product_id: string;
+  version_id: string;
+  build_number: number;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'canceled';
+  trigger: 'manual' | 'auto' | 'schedule';
+  branch?: string;
+  commit?: string;
+  started_at?: string;
+  finished_at?: string;
+  duration?: number; // seconds
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 约束相关类型
+export interface Constraint {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'product_dependency' | 'version_requirement' | 'environment_restriction' | 'resource_limit' | 'maintenance_window';
+  scope: 'product' | 'environment' | 'global';
+  target_id?: string; // product_id or environment_id
+  rules: ConstraintRule[];
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConstraintRule {
+  id: string;
+  condition: string;
+  value: any;
+  error_message?: string;
+}
+
+// 工作流相关类型
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'deployment' | 'approval' | 'notification' | 'custom';
+  trigger: 'manual' | 'schedule' | 'event';
+  steps: WorkflowStep[];
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowStep {
+  id: string;
+  name: string;
+  type: 'task' | 'approval' | 'notification' | 'condition';
+  config: Record<string, any>;
+  order: number;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  workflow_id: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'canceled';
+  current_step?: number;
+  steps: WorkflowExecutionStep[];
+  started_at?: string;
+  finished_at?: string;
+  created_by?: string;
+  created_at: string;
+}
+
+export interface WorkflowExecutionStep {
+  step_id: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'skipped';
+  started_at?: string;
+  finished_at?: string;
+  result?: any;
+  error?: string;
+}
+
+// 集成相关类型
+export interface Integration {
+  id: string;
+  name: string;
+  type: 'jenkins' | 'gitlab' | 'github' | 'webhook' | 'email' | 'dingtalk' | 'wechat' | 'slack' | 'sso';
+  config: Record<string, any>;
+  enabled: boolean;
+  last_sync_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 部署计划相关类型扩展
+export interface DeploymentPlanTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  products: Array<{
+    product_id: string;
+    version: string;
+  }>;
+  environments: string[];
+  strategy: 'blue-green' | 'canary' | 'rolling';
+  created_at: string;
+  updated_at: string;
+}
