@@ -28,6 +28,47 @@ export interface Environment {
   updated_at: string;
 }
 
+// 组织相关类型
+export interface Organization {
+  id: string;
+  name: string;
+  description?: string;
+  parent_id?: string; // 父组织ID，支持层级结构
+  leader_id?: string; // 负责人ID
+  leader_name?: string; // 负责人姓名
+  status: 'active' | 'inactive';
+  tags?: string[];
+  permission_scope?: {
+    environments?: string[]; // 可访问的环境ID列表
+    products?: string[]; // 可访问的产品ID列表
+  };
+  resource_quota?: {
+    cpu?: number;
+    memory?: number; // GB
+    storage?: number; // GB
+  };
+  resource_usage?: {
+    cpu?: number;
+    memory?: number;
+    storage?: number;
+  };
+  approval_workflow?: {
+    enabled: boolean;
+    approvers?: string[]; // 审批人ID列表
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  user_name?: string;
+  role: 'admin' | 'developer' | 'tester' | 'operator'; // 管理员、研发、测试、运维
+  created_at: string;
+}
+
 // 产品相关类型
 export interface Product {
   id: string;
@@ -35,6 +76,8 @@ export interface Product {
   description?: string;
   type?: string;
   status: 'active' | 'archived';
+  organization_ids: string[]; // 绑定的组织部门ID列表（支持多对多）
+  organizations?: Organization[]; // 绑定的组织部门详情（可选）
   versions?: ProductVersion[];
   dependencies?: ProductDependency[];
   constraints?: ProductConstraint[];

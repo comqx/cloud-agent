@@ -4,6 +4,7 @@ import {
   DashboardOutlined,
   CloudOutlined,
   AppstoreOutlined,
+  TeamOutlined,
   RocketOutlined,
   UnorderedListOutlined,
   RobotOutlined,
@@ -13,6 +14,7 @@ import {
   BellOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
 
 const { Header, Content, Sider } = AntLayout;
 
@@ -23,11 +25,14 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
 
-  const menuItems = [
+  const menuItems: MenuProps['items'] = [
     {
       key: '/',
       icon: <DashboardOutlined />,
       label: <Link to="/">概览仪表盘</Link>,
+    },
+    {
+      type: 'divider',
     },
     {
       key: '/environments',
@@ -35,14 +40,19 @@ export default function Layout({ children }: LayoutProps) {
       label: <Link to="/environments">环境管理</Link>,
     },
     {
+      key: '/organizations',
+      icon: <TeamOutlined />,
+      label: <Link to="/organizations">组织管理</Link>,
+    },
+    {
       key: '/products',
       icon: <AppstoreOutlined />,
       label: <Link to="/products">产品管理</Link>,
     },
     {
-      key: '/releases',
+      key: '/deployment-plans',
       icon: <RocketOutlined />,
-      label: <Link to="/releases">发布与部署</Link>,
+      label: <Link to="/deployment-plans">部署计划</Link>,
     },
     {
       key: '/tasks',
@@ -61,8 +71,8 @@ export default function Layout({ children }: LayoutProps) {
     },
     {
       key: '/audit',
-      icon: <BellOutlined />, // Changed to distinguish from Compliance
-      label: <Link to="/audit">审计日志</Link>,
+      icon: <SafetyOutlined />,
+      label: <Link to="/audit">审计与合规</Link>,
     },
     {
       key: '/configuration',
@@ -73,26 +83,6 @@ export default function Layout({ children }: LayoutProps) {
       key: '/monitoring',
       icon: <BellOutlined />,
       label: <Link to="/monitoring">监控告警</Link>,
-    },
-    {
-      key: '/constraints',
-      icon: <SafetyOutlined />,
-      label: <Link to="/constraints">约束策略</Link>,
-    },
-    {
-      key: '/compliance',
-      icon: <SafetyOutlined />,
-      label: <Link to="/compliance">合规审计</Link>,
-    },
-    {
-      key: '/workflows',
-      icon: <UnorderedListOutlined />,
-      label: <Link to="/workflows">工作流编排</Link>,
-    },
-    {
-      key: '/integration',
-      icon: <SwapOutlined />,
-      label: <Link to="/integration">集成中心</Link>,
     },
     {
       key: '/system',
@@ -114,7 +104,6 @@ export default function Layout({ children }: LayoutProps) {
           <Menu
             mode="inline"
             selectedKeys={[location.pathname]}
-            defaultOpenKeys={['/', '/releases', '/tasks']}
             style={{ height: '100%', borderRight: 0 }}
             items={menuItems}
           />

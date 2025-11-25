@@ -5,6 +5,8 @@ import type {
   Log,
   File,
   Environment,
+  Organization,
+  OrganizationMember,
   Product,
   ProductVersion,
   Release,
@@ -18,6 +20,8 @@ import type {
   UserGroup,
   Role,
   DashboardStats,
+  CompliancePolicy,
+  ComplianceRule,
 } from '../types';
 
 // 重新导出类型，方便其他文件使用
@@ -27,6 +31,8 @@ export type {
   Log,
   File,
   Environment,
+  Organization,
+  OrganizationMember,
   Product,
   ProductVersion,
   Release,
@@ -40,6 +46,8 @@ export type {
   UserGroup,
   Role,
   DashboardStats,
+  CompliancePolicy,
+  ComplianceRule,
 } from '../types';
 
 const api = axios.create({
@@ -159,6 +167,18 @@ export const auditAPI = {
   export: (params?: Record<string, any>) => api.get('/audit-logs/export', { params, responseType: 'blob' }),
 };
 
+// Compliance API
+export const complianceAPI = {
+  listPolicies: () => api.get<{ data: CompliancePolicy[] }>('/compliance/policies'),
+  getPolicy: (id: string) => api.get<{ data: CompliancePolicy }>(`/compliance/policies/${id}`),
+  createPolicy: (data: Partial<CompliancePolicy>) => api.post<{ data: CompliancePolicy }>('/compliance/policies', data),
+  updatePolicy: (id: string, data: Partial<CompliancePolicy>) =>
+    api.put<{ data: CompliancePolicy }>(`/compliance/policies/${id}`, data),
+  deletePolicy: (id: string) => api.delete(`/compliance/policies/${id}`),
+  check: (policyId?: string) => api.post<{ data: { results: ComplianceRule[] } }>('/compliance/check', { policy_id: policyId }),
+  getReport: (params?: Record<string, any>) => api.get('/compliance/report', { params, responseType: 'blob' }),
+};
+
 // Configuration API
 export const configurationAPI = {
   list: (params?: { environment_id?: string; product_id?: string }) =>
@@ -226,8 +246,47 @@ export const roleAPI = {
   delete: (id: string) => api.delete(`/roles/${id}`),
 };
 
+// Organization API
+export const organizationAPI = {
+  list: (params?: { parent_id?: string; status?: string }) =>
+    api.get<{ data: Organization[] }>('/organizations', { params }),
+  get: (id: string) => api.get<{ data: Organization }>(`/organizations/${id}`),
+  create: (data: Partial<Organization>) =>
+    api.post<{ data: Organization }>('/organizations', data),
+  update: (id: string, data: Partial<Organization>) =>
+    api.put<{ data: Organization }>(`/organizations/${id}`, data),
+  delete: (id: string) => api.delete(`/organizations/${id}`),
+  getMembers: (id: string) =>
+    api.get<{ data: OrganizationMember[] }>(`/organizations/${id}/members`),
+  addMember: (id: string, data: { user_id: string; role: OrganizationMember['role'] }) =>
+    api.post<{ data: OrganizationMember }>(`/organizations/${id}/members`, data),
+  removeMember: (id: string, member_id: string) =>
+    api.delete(`/organizations/${id}/members/${member_id}`),
+  updateMemberRole: (id: string, member_id: string, role: OrganizationMember['role']) =>
+    api.put(`/organizations/${id}/members/${member_id}`, { role }),
+  getProducts: (id: string) =>
+    api.get<{ data: Product[] }>(`/organizations/${id}/products`),
+};
+
 // Dashboard API
 export const dashboardAPI = {
   getStats: () => api.get<{ data: DashboardStats }>('/dashboard/stats'),
+};
+
+// Deployment Plan API
+export const deploymentPlanAPI = {
+  list: (params?: { status?: string; limit?: number; offset?: number }) =>
+    api.get<{ data: DeploymentPlan[] }>('/deployment-plans', { params }),
+  get: (id: string) => api.get<{ data: DeploymentPlan }>(`/deployment-plans/${id}`),
+  create: (data: Partial<DeploymentPlan>) => api.post<{ data: DeploymentPlan }>('/deployment-plans', data),
+  update: (id: string, data: Partial<DeploymentPlan>) =>
+    api.put<{ data: DeploymentPlan }>(`/deployment-plans/${id}`, data),
+  delete: (id: string) => api.delete(`/deployment-plans/${id}`),
+  execute: (id: string) => api.post(`/deployment-plans/${id}/execute`),
+  pause: (id: string) => api.post(`/deployment-plans/${id}/pause`),
+  resume: (id: string) => api.post(`/deployment-plans/${id}/resume`),
+  cancel: (id: string) => api.post(`/deployment-plans/${id}/cancel`),
+  retry: (id: string) => api.post(`/deployment-plans/${id}/retry`),
+  getProgress: (id: string) => api.get<{ data: { progress: number; details: any } }>(`/deployment-plans/${id}/progress`),
 };
 
