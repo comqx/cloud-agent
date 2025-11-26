@@ -4,25 +4,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // Manager Agent 管理器
 type Manager struct {
-	db          *storage.Database
-	connections map[string]*common.WSConnection // agentID -> connection
-	agents      map[string]*common.Agent       // agentID -> agent
-	mu          sync.RWMutex
+	db             *storage.Database
+	connections    map[string]*common.WSConnection // agentID -> connection
+	agents         map[string]*common.Agent        // agentID -> agent
+	mu             sync.RWMutex
 	messageHandler func(agentID string, msgType string, data interface{})
 }
 
 // NewManager 创建 Agent 管理器
 func NewManager(db *storage.Database, messageHandler func(agentID string, msgType string, data interface{})) *Manager {
 	return &Manager{
-		db:          db,
-		connections: make(map[string]*common.WSConnection),
-		agents:      make(map[string]*common.Agent),
+		db:             db,
+		connections:    make(map[string]*common.WSConnection),
+		agents:         make(map[string]*common.Agent),
 		messageHandler: messageHandler,
 	}
 }
@@ -35,10 +35,10 @@ func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data 
 	// 根据 env-主机名查找或创建 Agent（保证唯一性）
 	var agent *common.Agent
 	var err error
-	
+
 	// 使用 env（可能为空字符串）
 	env := data.Env
-	
+
 	// 先尝试根据 env-主机名查找
 	agent, err = m.db.GetAgentByEnvHostname(env, data.Hostname)
 	if err != nil {
@@ -49,14 +49,14 @@ func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data 
 			agentID = env + "-" + data.Hostname
 		}
 		agent = &common.Agent{
-			ID:        agentID,
-			Name:      data.Name,
-			Hostname:  data.Hostname,
-			IP:        data.IP,
-			Version:   data.Version,
-			Env:       env,
-			Status:    common.AgentStatusOnline,
-			LastSeen:  &[]time.Time{time.Now()}[0],
+			ID:       agentID,
+			Name:     data.Name,
+			Hostname: data.Hostname,
+			IP:       data.IP,
+			Version:  data.Version,
+			Env:      env,
+			Status:   common.AgentStatusOnline,
+			LastSeen: &[]time.Time{time.Now()}[0],
 		}
 		if err := m.db.CreateAgent(agent); err != nil {
 			return "", err
@@ -103,6 +103,24 @@ func (m *Manager) UnregisterAgent(agentID string) {
 		m.db.UpdateAgent(agent)
 		delete(m.agents, agentID)
 	}
+}
+
+// DeleteAgent 删除 Agent
+func (m *Manager) DeleteAgent(agentID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 如果有连接，关闭连接
+	if conn, exists := m.connections[agentID]; exists {
+		conn.Close()
+		delete(m.connections, agentID)
+	}
+
+	// 从内存中移除
+	delete(m.agents, agentID)
+
+	// 从数据库删除
+	return m.db.DeleteAgent(agentID)
 }
 
 // GetConnection 获取 Agent 连接
@@ -190,4 +208,3 @@ func (m *Manager) ListAgents() ([]*common.Agent, error) {
 
 	return dbAgents, nil
 }
-

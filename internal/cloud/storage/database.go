@@ -114,6 +114,11 @@ func (d *Database) UpdateAgentStatus(agentID string, status common.AgentStatus) 
 		}).Error
 }
 
+// DeleteAgent 删除 Agent
+func (d *Database) DeleteAgent(agentID string) error {
+	return d.db.Delete(&common.Agent{}, "id = ?", agentID).Error
+}
+
 // Task 相关操作
 
 // CreateTask 创建任务
@@ -224,4 +229,3 @@ func (d *Database) ListFiles(limit, offset int) ([]*common.File, error) {
 	err := d.db.Order("created_at DESC").Limit(limit).Offset(offset).Find(&files).Error
 	return files, err
 }
-

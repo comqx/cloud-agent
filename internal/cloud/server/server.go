@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/agent"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/task"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 // Server Cloud 服务器
@@ -60,6 +60,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/agents", s.listAgents)
 		api.GET("/agents/:id", s.getAgent)
 		api.GET("/agents/:id/status", s.getAgentStatus)
+		api.DELETE("/agents/:id", s.deleteAgent)
 
 		// 任务相关
 		api.POST("/tasks", s.createTask)

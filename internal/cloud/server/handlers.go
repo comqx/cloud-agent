@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"github.com/gin-gonic/gin"
+	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // listAgents 列出所有 Agent
@@ -36,12 +36,22 @@ func (s *Server) getAgentStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": status})
 }
 
+// deleteAgent 删除 Agent
+func (s *Server) deleteAgent(c *gin.Context) {
+	agentID := c.Param("id")
+	if err := s.agentMgr.DeleteAgent(agentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "agent deleted"})
+}
+
 // createTask 创建任务
 func (s *Server) createTask(c *gin.Context) {
 	var req struct {
 		AgentID string                 `json:"agent_id" binding:"required"`
-		Type    common.TaskType         `json:"type" binding:"required"`
-		Command string                  `json:"command" binding:"required"`
+		Type    common.TaskType        `json:"type" binding:"required"`
+		Command string                 `json:"command" binding:"required"`
 		Params  map[string]interface{} `json:"params"`
 		FileID  string                 `json:"file_id"`
 	}
@@ -181,4 +191,3 @@ func (s *Server) distributeFile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "file distribution started"})
 }
-

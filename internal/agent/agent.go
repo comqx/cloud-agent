@@ -77,6 +77,9 @@ func (a *Agent) handleMessages() {
 			a.handleTaskCreate(msg)
 		case common.MessageTypeTaskCancel:
 			a.handleTaskCancel(msg)
+		case common.MessageTypeAgentStatus:
+			// 忽略状态消息，或者记录日志
+			log.Printf("Received agent status update: %v", msg.Data)
 		default:
 			log.Printf("Unknown message type: %s", msg.Type)
 		}

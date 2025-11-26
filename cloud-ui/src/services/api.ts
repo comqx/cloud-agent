@@ -58,6 +58,7 @@ export const agentAPI = {
   list: () => api.get<Agent[]>('/agents'),
   get: (id: string) => api.get<Agent>(`/agents/${id}`),
   getStatus: (id: string) => api.get<{ status: string }>(`/agents/${id}/status`),
+  delete: (id: string) => api.delete(`/agents/${id}`),
 };
 
 // Task API
