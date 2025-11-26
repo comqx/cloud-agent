@@ -28,7 +28,7 @@ export default function Tasks() {
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [taskType, setTaskType] = useState<string>('shell');
-  const [uploadedFile, setUploadedFile] = useState<any>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
 
   useEffect(() => {
     loadAgents();
@@ -68,29 +68,61 @@ export default function Tasks() {
   const handleSubmit = async (values: any) => {
     setLoading(true);
     try {
-      let fileId = values.file_id;
+      const agentIds = Array.isArray(values.agent_ids) ? values.agent_ids : [values.agent_ids];
 
-      // If file task and user uploaded a file, upload it first
-      if (taskType === 'file' && uploadedFile) {
-        const uploadRes = await fileAPI.upload(uploadedFile);
-        fileId = uploadRes.data.id;
+      // If file task and user uploaded files, upload them first and create tasks
+      if (taskType === 'file' && uploadedFiles.length > 0) {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const file of uploadedFiles) {
+          try {
+            const uploadRes = await fileAPI.upload(file);
+            const fileId = uploadRes.data.id;
+
+            // Create task for each agent
+            const promises = agentIds.map((agentId: string) =>
+              taskAPI.create({
+                agent_id: agentId,
+                type: values.type,
+                command: values.command || '',
+                params: values.params ? JSON.parse(values.params) : undefined,
+                file_id: fileId,
+              })
+            );
+
+            await Promise.all(promises);
+            successCount++;
+          } catch (error) {
+            failCount++;
+          }
+        }
+
+        if (failCount > 0) {
+          message.warning(`上传完成: ${successCount} 个文件成功, ${failCount} 个失败`);
+        } else {
+          message.success(`成功上传并分发 ${successCount} 个文件到 ${agentIds.length} 个 Agent`);
+        }
+      } else {
+        // Non-file task or no files uploaded
+        let fileId = values.file_id;
+
+        const promises = agentIds.map((agentId: string) =>
+          taskAPI.create({
+            agent_id: agentId,
+            type: values.type,
+            command: values.command || '',
+            params: values.params ? JSON.parse(values.params) : undefined,
+            file_id: fileId,
+          })
+        );
+
+        await Promise.all(promises);
+        message.success(`成功创建 ${agentIds.length} 个任务`);
       }
 
-      const agentIds = Array.isArray(values.agent_ids) ? values.agent_ids : [values.agent_ids];
-      const promises = agentIds.map((agentId: string) =>
-        taskAPI.create({
-          agent_id: agentId,
-          type: values.type,
-          command: values.command || '',
-          params: values.params ? JSON.parse(values.params) : undefined,
-          file_id: fileId,
-        })
-      );
-
-      await Promise.all(promises);
-      message.success(`成功创建 ${agentIds.length} 个任务`);
       form.resetFields();
-      setUploadedFile(null);
+      setUploadedFiles([]);
       loadTasks();
     } catch (error: any) {
       message.error('创建任务失败: ' + error.message);
@@ -341,17 +373,23 @@ export default function Tasks() {
           {taskType === 'file' ? (
             <Form.Item label="上传文件">
               <Upload
+                multiple
                 beforeUpload={(file) => {
-                  setUploadedFile(file);
+                  setUploadedFiles(prev => [...prev, file]);
                   message.success(`${file.name} 已选择`);
                   return false;
                 }}
-                onRemove={() => {
-                  setUploadedFile(null);
+                onRemove={(file) => {
+                  setUploadedFiles(prev => prev.filter(f => f.uid !== file.uid));
                 }}
-                maxCount={1}
+                maxCount={50}
+                fileList={uploadedFiles.map(f => ({
+                  uid: f.uid,
+                  name: f.name,
+                  status: 'done',
+                }))}
               >
-                <Button icon={<UploadOutlined />}>选择文件</Button>
+                <Button icon={<UploadOutlined />}>选择文件 (最多50个)</Button>
               </Upload>
             </Form.Item>
           ) : (

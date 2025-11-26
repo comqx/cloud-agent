@@ -25,7 +25,7 @@ plugins:
   - type: file
     enabled: true
     config:
-      base_path: /tmp/tiangong-deploy  # 文件操作基础路径
+      base_path: /Users/liuqixiang/Tiangong-Deploy/tmp  # 文件操作基础路径
 
 
   # MySQL 执行器（使用 goInception）

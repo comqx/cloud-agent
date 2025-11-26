@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/agent"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
-	"github.com/google/uuid"
 )
 
 // Manager 任务管理器
@@ -40,7 +40,7 @@ func NewManager(db *storage.Database, agentMgr *agent.Manager) *Manager {
 // CreateTask 创建任务
 // 如果提供了 fileID，会自动将文件路径信息添加到 params 中
 func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command string, params map[string]interface{}, fileID string) (*common.Task, error) {
-	// 检查 Agent 是否在线
+	// Check if Agent is online
 	_, exists := m.agentMgr.GetConnection(agentID)
 	if !exists {
 		return nil, common.NewError("agent not online")
@@ -48,7 +48,21 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 
 	taskID := uuid.New().String()
 
-	// 序列化参数
+	// If fileID is provided, get file information and add to params BEFORE serialization
+	if fileID != "" {
+		file, err := m.db.GetFile(fileID)
+		if err == nil {
+			// Ensure params is not nil
+			if params == nil {
+				params = make(map[string]interface{})
+			}
+			// Add file path and file name information
+			params["file_path"] = file.Path
+			params["file_name"] = file.Name
+		}
+	}
+
+	// Serialize parameters
 	paramsJSON := ""
 	if params != nil {
 		paramsBytes, _ := json.Marshal(params)
@@ -67,20 +81,6 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 
 	if err := m.db.CreateTask(task); err != nil {
 		return nil, err
-	}
-
-	// 如果提供了 fileID，获取文件信息并添加到 params
-	if fileID != "" {
-		file, err := m.db.GetFile(fileID)
-		if err == nil {
-			// 确保 params 不为 nil
-			if params == nil {
-				params = make(map[string]interface{})
-			}
-			// 添加文件路径和文件名信息
-			params["file_path"] = file.Path
-			params["file_name"] = file.Name
-		}
 	}
 
 	// 发送任务到 Agent

@@ -51,7 +51,7 @@ func (s *Server) createTask(c *gin.Context) {
 	var req struct {
 		AgentID string                 `json:"agent_id" binding:"required"`
 		Type    common.TaskType        `json:"type" binding:"required"`
-		Command string                 `json:"command" binding:"required"`
+		Command string                 `json:"command"`
 		Params  map[string]interface{} `json:"params"`
 		FileID  string                 `json:"file_id"`
 	}
