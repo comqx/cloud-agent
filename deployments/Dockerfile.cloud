@@ -11,7 +11,7 @@ COPY cloud-ui/ ./
 RUN npm run build
 
 # 阶段2: 构建 Go 服务
-FROM golang:1.21-bookworm AS go-builder
+FROM golang:bookworm AS go-builder
 
 WORKDIR /app
 
