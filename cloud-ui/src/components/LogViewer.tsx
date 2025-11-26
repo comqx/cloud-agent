@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Tag } from 'antd';
-import { taskAPI, Log } from '../services/api';
+import { Log } from '../services/api';
 import { wsService } from '../services/websocket';
 import { TaskLogData } from '../types';
 
