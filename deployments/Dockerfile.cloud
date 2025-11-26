@@ -1,4 +1,17 @@
-FROM golang:1.21-alpine AS builder
+# 阶段1: 构建 UI
+FROM node:18-bookworm-slim AS ui-builder
+
+WORKDIR /app
+
+# 复制 UI 文件
+COPY cloud-ui/package*.json ./
+RUN npm ci
+
+COPY cloud-ui/ ./
+RUN npm run build
+
+# 阶段2: 构建 Go 服务
+FROM golang:1.21-bookworm AS go-builder
 
 WORKDIR /app
 
@@ -12,15 +25,25 @@ COPY . .
 # 构建 Cloud 服务
 RUN CGO_ENABLED=1 GOOS=linux go build -o cloud ./cmd/cloud
 
-# 运行阶段
-FROM alpine:latest
+# 阶段3: 运行阶段
+FROM debian:bookworm-slim
 
-RUN apk --no-cache add ca-certificates sqlite
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # 从构建阶段复制二进制文件
-COPY --from=builder /app/cloud .
+COPY --from=go-builder /app/cloud .
+
+# 从 UI 构建阶段复制静态文件
+COPY --from=ui-builder /app/dist ./cloud-ui/dist
+
+# 复制配置文件
+COPY configs/agent-plugins.yaml /app/configs/agent-plugins.yaml
 
 # 创建数据目录
 RUN mkdir -p /app/data/files
