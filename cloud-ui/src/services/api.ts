@@ -12,6 +12,7 @@ export interface Agent {
   ip: string;
   version: string;
   env?: string; // K8s 集群名称
+  protocol?: string; // 连接协议: ws 或 wss
   status: 'online' | 'offline' | 'error';
   last_seen?: string;
   created_at: string;

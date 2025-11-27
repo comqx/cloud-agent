@@ -21,6 +21,7 @@ type Agent struct {
 	IP          string      `json:"ip"`
 	Version     string      `json:"version"`
 	Env         string      `json:"env" gorm:"index"` // K8s 集群名称
+	Protocol    string      `json:"protocol" gorm:"type:varchar(10);default:'ws'"` // 连接协议: ws 或 wss
 	Status      AgentStatus `json:"status" gorm:"default:'offline'"`
 	LastSeen    *time.Time  `json:"last_seen"`
 	Metadata    string      `json:"metadata" gorm:"type:text"` // JSON 格式的元数据

@@ -1,6 +1,20 @@
 import { Message } from '../types';
 
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+// 从环境变量或配置中获取 WebSocket URL
+// 支持通过 VITE_WS_URL 环境变量配置，或根据当前协议自动判断
+const getWebSocketURL = (): string => {
+  // 优先使用环境变量配置
+  const envWsUrl = import.meta.env.VITE_WS_URL;
+  if (envWsUrl) {
+    return envWsUrl;
+  }
+  
+  // 根据当前页面协议自动判断
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
+};
+
+const WS_URL = getWebSocketURL();
 
 export class WebSocketService {
   private ws: WebSocket | null = null;

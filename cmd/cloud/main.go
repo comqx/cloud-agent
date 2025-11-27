@@ -16,6 +16,8 @@ func main() {
 		addr        = flag.String("addr", ":8080", "服务器地址")
 		dbPath      = flag.String("db", "./data/cloud.db", "数据库路径")
 		fileStorage = flag.String("storage", "./data/files", "文件存储路径")
+		certFile    = flag.String("cert", "", "TLS 证书文件路径（启用 HTTPS/WSS）")
+		keyFile     = flag.String("key", "", "TLS 私钥文件路径（启用 HTTPS/WSS）")
 	)
 	flag.Parse()
 
@@ -39,12 +41,18 @@ func main() {
 
 	// 启动服务器
 	go func() {
-		if err := srv.Run(*addr); err != nil {
+		var err error
+		if *certFile != "" && *keyFile != "" {
+			err = srv.RunTLS(*addr, *certFile, *keyFile)
+			log.Printf("Cloud server started with TLS on %s", *addr)
+		} else {
+			err = srv.Run(*addr)
+			log.Printf("Cloud server started on %s", *addr)
+		}
+		if err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
-
-	log.Printf("Cloud server started on %s", *addr)
 
 	// 等待中断信号
 	quit := make(chan os.Signal, 1)

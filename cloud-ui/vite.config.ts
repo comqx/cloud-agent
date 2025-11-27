@@ -8,12 +8,14 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_API_TARGET || 'https://localhost:8443',
         changeOrigin: true,
+        secure: false, // 允许自签证书
       },
       '/ws': {
-        target: 'ws://localhost:8080',
+        target: process.env.VITE_WS_PROXY_TARGET || 'wss://localhost:8443',
         ws: true,
+        secure: false, // 允许自签证书
       },
     },
   },

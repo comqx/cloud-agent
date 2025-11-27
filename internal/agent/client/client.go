@@ -1,10 +1,12 @@
 package client
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
@@ -48,7 +50,33 @@ func (c *Client) Connect() error {
 	}
 	u.Path = "/ws"
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	// 创建 WebSocket Dialer
+	dialer := websocket.DefaultDialer
+	
+	// 如果是 WSS，配置 TLS
+	if u.Scheme == "wss" {
+		// 检查是否跳过证书验证（通过环境变量配置）
+		skipVerify := false
+		if skipVerifyStr := os.Getenv("WS_SKIP_VERIFY"); skipVerifyStr != "" {
+			if parsed, err := strconv.ParseBool(skipVerifyStr); err == nil {
+				skipVerify = parsed
+			}
+		}
+		
+		// 如果未设置环境变量，默认跳过验证（适用于自签证书）
+		if os.Getenv("WS_SKIP_VERIFY") == "" {
+			skipVerify = true
+		}
+		
+		if skipVerify {
+			log.Println("WSS: Skipping certificate verification (for self-signed certificates)")
+			dialer.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+		}
+	}
+
+	conn, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
 	}

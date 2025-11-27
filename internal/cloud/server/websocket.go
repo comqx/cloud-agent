@@ -10,6 +10,12 @@ import (
 
 // handleWebSocket 处理 WebSocket 连接
 func (s *Server) handleWebSocket(c *gin.Context) {
+	// 在升级之前，获取协议信息（ws 或 wss）
+	protocol := "ws"
+	if c.Request.TLS != nil {
+		protocol = "wss"
+	}
+
 	// 在升级之前，确保请求体已被读取（防止 Gin 在升级后读取）
 	if c.Request.Body != nil {
 		c.Request.Body.Close()
@@ -26,6 +32,7 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 	// 注意：不能在升级后访问 c.Request 或 c.Writer
 
 	wsConn := common.NewWSConnection(conn)
+	wsConn.SetProtocol(protocol) // 设置协议信息
 	wsConn.Start()
 
 	// 读取消息（从 readPump 的 channel 读取）
@@ -73,8 +80,11 @@ func (s *Server) handleAgentRegister(wsConn *common.WSConnection, msg *common.Me
 		return
 	}
 
-	// 注册 Agent
-	actualAgentID, err := s.agentMgr.RegisterAgent(registerData.AgentID, wsConn, &registerData)
+	// 获取协议信息
+	protocol := wsConn.GetProtocol()
+
+	// 注册 Agent（传递协议信息）
+	actualAgentID, err := s.agentMgr.RegisterAgent(registerData.AgentID, wsConn, &registerData, protocol)
 	if err != nil {
 		wsConn.WriteMessage(common.NewErrorMessage(err, msg.RequestID))
 		return

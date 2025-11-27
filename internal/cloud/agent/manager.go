@@ -28,7 +28,7 @@ func NewManager(db *storage.Database, messageHandler func(agentID string, msgTyp
 }
 
 // RegisterAgent 注册 Agent，返回实际的 agentID
-func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data *common.AgentRegisterData) (string, error) {
+func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data *common.AgentRegisterData, protocol string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -55,6 +55,7 @@ func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data 
 			IP:       data.IP,
 			Version:  data.Version,
 			Env:      env,
+			Protocol: protocol,
 			Status:   common.AgentStatusOnline,
 			LastSeen: &[]time.Time{time.Now()}[0],
 		}
@@ -69,6 +70,7 @@ func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data 
 		agent.IP = data.IP
 		agent.Version = data.Version
 		agent.Env = env
+		agent.Protocol = protocol
 		agent.Status = common.AgentStatusOnline
 		now := time.Now()
 		agent.LastSeen = &now
@@ -188,6 +190,11 @@ func (m *Manager) ListAgents() ([]*common.Agent, error) {
 	// 更新状态并返回
 	now := time.Now()
 	for _, agent := range dbAgents {
+		// 确保 protocol 字段有默认值（兼容旧数据）
+		if agent.Protocol == "" {
+			agent.Protocol = "ws"
+		}
+		
 		if connectedAgents[agent.ID] {
 			// 有连接，状态为在线
 			agent.Status = common.AgentStatusOnline

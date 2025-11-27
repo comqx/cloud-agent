@@ -99,7 +99,18 @@ func (d *Database) UpdateAgent(agent *common.Agent) error {
 func (d *Database) ListAgents() ([]*common.Agent, error) {
 	var agents []*common.Agent
 	err := d.db.Find(&agents).Error
-	return agents, err
+	if err != nil {
+		return nil, err
+	}
+	
+	// 确保 protocol 字段有默认值（处理 NULL 值）
+	for i := range agents {
+		if agents[i].Protocol == "" {
+			agents[i].Protocol = "ws"
+		}
+	}
+	
+	return agents, nil
 }
 
 // UpdateAgentStatus 更新 Agent 状态

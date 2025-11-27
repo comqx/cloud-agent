@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Table, Tag, Card, Button, message, Modal } from 'antd';
-import { ReloadOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { Table, Tag, Card, Button, message, Modal, Space, Tooltip } from 'antd';
+import { ReloadOutlined, DeleteOutlined, ExclamationCircleOutlined, SafetyOutlined } from '@ant-design/icons';
 import { agentAPI, Agent } from '../services/api';
 
 export default function Agents() {
@@ -62,6 +62,16 @@ export default function Agents() {
       title: '主机名',
       dataIndex: 'hostname',
       key: 'hostname',
+      render: (text: string, record: Agent) => (
+        <Space>
+          {text}
+          {record.protocol === 'wss' && (
+            <Tooltip title="使用 WSS 安全连接">
+              <SafetyOutlined style={{ color: '#52c41a' }} />
+            </Tooltip>
+          )}
+        </Space>
+      ),
     },
     {
       title: 'IP',

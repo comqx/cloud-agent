@@ -24,13 +24,14 @@ const (
 
 // WSConnection WebSocket 连接封装
 type WSConnection struct {
-	conn   *websocket.Conn
-	send   chan *Message
-	recv   chan *Message
-	done   chan struct{}
-	mu     sync.Mutex
-	closed bool
-	once   sync.Once
+	conn     *websocket.Conn
+	send     chan *Message
+	recv     chan *Message
+	done     chan struct{}
+	mu       sync.Mutex
+	closed   bool
+	once     sync.Once
+	protocol string // 连接协议: ws 或 wss
 }
 
 // NewWSConnection 创建新的 WebSocket 连接
@@ -43,13 +44,28 @@ func NewWSConnection(conn *websocket.Conn) *WSConnection {
 	})
 
 	ws := &WSConnection{
-		conn: conn,
-		send: make(chan *Message, 256),
-		recv: make(chan *Message, 256),
-		done: make(chan struct{}),
+		conn:     conn,
+		send:     make(chan *Message, 256),
+		recv:     make(chan *Message, 256),
+		done:     make(chan struct{}),
+		protocol: "ws", // 默认协议
 	}
 
 	return ws
+}
+
+// SetProtocol 设置连接协议
+func (ws *WSConnection) SetProtocol(protocol string) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	ws.protocol = protocol
+}
+
+// GetProtocol 获取连接协议
+func (ws *WSConnection) GetProtocol() string {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	return ws.protocol
 }
 
 // ReadMessage 读取消息（从 channel 读取，由 readPump 填充）

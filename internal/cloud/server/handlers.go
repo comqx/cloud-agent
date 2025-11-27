@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -10,11 +11,28 @@ import (
 
 // listAgents 列出所有 Agent
 func (s *Server) listAgents(c *gin.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in listAgents: %v", r)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		}
+	}()
+	
 	agents, err := s.agentMgr.ListAgents()
 	if err != nil {
+		log.Printf("Error listing agents: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	
+	// 确保 protocol 字段有默认值（兼容旧数据）
+	for _, agent := range agents {
+		if agent.Protocol == "" {
+			agent.Protocol = "ws"
+		}
+	}
+	
+	log.Printf("Returning %d agents", len(agents))
 	c.JSON(http.StatusOK, agents)
 }
 

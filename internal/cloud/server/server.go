@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"log"
 	"net/http"
 	"os"
@@ -30,8 +31,23 @@ func NewServer(db *storage.Database, fileStorage string) *Server {
 		},
 	}
 
+	// 使用默认的 Gin 引擎（已包含 recovery 中间件）
+	router := gin.Default()
+	
+	// 添加 CORS 中间件（如果需要）
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
+	
 	s := &Server{
-		router:      gin.Default(),
+		router:      router,
 		db:          db,
 		upgrader:    upgrader,
 		fileStorage: fileStorage,
@@ -85,10 +101,27 @@ func (s *Server) setupRoutes() {
 	s.router.StaticFile("/", "./cloud-ui/dist/index.html")
 }
 
-// Run 启动服务器
+// Run 启动服务器（HTTP）
 func (s *Server) Run(addr string) error {
 	log.Printf("Cloud server starting on %s", addr)
 	return s.router.Run(addr)
+}
+
+// RunTLS 启动服务器（HTTPS/WSS）
+func (s *Server) RunTLS(addr, certFile, keyFile string) error {
+	log.Printf("Cloud server starting with TLS on %s", addr)
+	log.Printf("Certificate: %s, Key: %s", certFile, keyFile)
+	
+	// 创建 HTTP 服务器
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: s.router,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+	
+	return srv.ListenAndServeTLS(certFile, keyFile)
 }
 
 // handleAgentMessage 处理来自 Agent 的消息

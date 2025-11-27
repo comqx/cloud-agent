@@ -244,7 +244,20 @@ docker-compose -f deployments/docker-compose.yml logs -f
 #### 1. 启动 Cloud 服务
 
 ```bash
+# 普通 HTTP 模式
 go run cmd/cloud/main.go -addr :8080 -db ./data/cloud.db -storage ./data/files
+
+# 启用 WSS 模式（需要先生成证书）
+# 注意：如果 certs 目录不存在或证书文件缺失，请先运行证书生成脚本
+chmod +x scripts/generate-cert.sh
+./scripts/generate-cert.sh ./certs localhost
+
+# 然后启动服务
+go run cmd/cloud/main.go -addr :8443 \
+  -cert ./certs/server.crt \
+  -key ./certs/server.key \
+  -db ./data/cloud.db \
+  -storage ./data/files
 ```
 
 #### 2. 启动 Agent
@@ -253,13 +266,18 @@ go run cmd/cloud/main.go -addr :8080 -db ./data/cloud.db -storage ./data/files
 # 设置 K8s 集群名称（可选）
 export K8S_CLUSTER_NAME=production
 
-# 启动 Agent
+# HTTP 模式
 go run cmd/agent/main.go -cloud http://localhost:8080 -name my-agent
+
+# WSS 模式（使用 HTTPS URL）
+go run cmd/agent/main.go -cloud https://localhost:8443 -name my-agent
 ```
 
 #### 3. 访问 Web UI
 
-打开浏览器访问：http://localhost:8080
+打开浏览器访问：
+- HTTP 模式：http://localhost:8080
+- HTTPS 模式：https://localhost:8443（浏览器会提示自签证书警告，需要手动接受）
 
 ### 方式三：Kubernetes 部署
 
@@ -328,6 +346,56 @@ curl -X POST http://localhost:8080/api/v1/files \
 ---
 
 ## ⚙️ 配置说明
+
+### WSS 安全通信配置
+
+项目支持使用 WSS（WebSocket Secure）协议进行加密通信，保证数据传输安全。
+
+#### 快速配置
+
+1. **生成自签证书**：
+```bash
+chmod +x scripts/generate-cert.sh
+
+# 基本用法：生成单个域名证书
+./scripts/generate-cert.sh ./certs localhost
+
+# 支持多个域名/IP（自动添加到 SAN）
+./scripts/generate-cert.sh ./certs example.com api.example.com www.example.com
+./scripts/generate-cert.sh ./certs 192.168.1.100 10.0.0.1
+```
+
+2. **启动 Cloud 服务（启用 WSS）**：
+```bash
+./bin/cloud -addr :8443 \
+  -cert ./certs/server.crt \
+  -key ./certs/server.key \
+  -db ./data/cloud.db \
+  -storage ./data/files
+```
+
+3. **启动 Agent（连接 WSS）**：
+```bash
+# 使用 HTTPS URL，自动使用 WSS
+./bin/agent -cloud https://localhost:8443
+
+# 对于自签证书，默认跳过证书验证
+# 如需启用证书验证，设置：export WS_SKIP_VERIFY=false
+```
+
+#### 配置选项说明
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `-cert` | TLS 证书文件路径 | 无（禁用 TLS） |
+| `-key` | TLS 私钥文件路径 | 无（禁用 TLS） |
+| `WS_SKIP_VERIFY` | Agent 是否跳过证书验证 | `true`（自签证书） |
+
+**证书自定义配置**：
+- 证书生成脚本支持自定义配置段名称、密钥用途、SAN 条目等
+- 详细配置说明请参考：[证书配置指南](scripts/cert-config-guide.md)
+
+**详细配置说明请参考**：[WSS配置说明.md](docs/WSS配置说明.md)
 
 ### Agent 插件配置
 
@@ -530,11 +598,12 @@ plugins:
 ## 🔒 安全建议
 
 - **生产环境**：
-  - 启用HTTPS/WSS加密通信
-  - 配置Agent认证（Token或mTLS）
-  - 限制WebSocket来源（CheckOrigin）
-  - 使用PostgreSQL替代SQLite
-  - 配置数据库连接白名单
+  - **启用HTTPS/WSS加密通信**：使用受信任的 CA 签发的证书（如 Let's Encrypt），而不是自签证书
+  - **证书管理**：定期更新证书，妥善保管私钥文件（权限 600），不要将私钥提交到代码仓库
+  - **配置Agent认证**：Token或mTLS双向认证
+  - **限制WebSocket来源**：配置 CheckOrigin 函数限制允许的来源
+  - **使用PostgreSQL替代SQLite**：提高数据存储的可靠性和性能
+  - **配置数据库连接白名单**：限制数据库访问来源
 
 - **权限控制**：
   - Agent执行器配置最小权限
