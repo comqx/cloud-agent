@@ -33,7 +33,7 @@ func NewServer(db *storage.Database, fileStorage string) *Server {
 
 	// 使用默认的 Gin 引擎（已包含 recovery 中间件）
 	router := gin.Default()
-	
+
 	// 添加 CORS 中间件（如果需要）
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -45,7 +45,7 @@ func NewServer(db *storage.Database, fileStorage string) *Server {
 		}
 		c.Next()
 	})
-	
+
 	s := &Server{
 		router:      router,
 		db:          db,
@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/agents", s.listAgents)
 		api.GET("/agents/:id", s.getAgent)
 		api.GET("/agents/:id/status", s.getAgentStatus)
+		api.PUT("/agents/:id", s.updateAgent)
 		api.DELETE("/agents/:id", s.deleteAgent)
 
 		// 任务相关
@@ -111,7 +112,7 @@ func (s *Server) Run(addr string) error {
 func (s *Server) RunTLS(addr, certFile, keyFile string) error {
 	log.Printf("Cloud server starting with TLS on %s", addr)
 	log.Printf("Certificate: %s, Key: %s", certFile, keyFile)
-	
+
 	// 创建 HTTP 服务器
 	srv := &http.Server{
 		Addr:    addr,
@@ -120,7 +121,7 @@ func (s *Server) RunTLS(addr, certFile, keyFile string) error {
 			MinVersion: tls.VersionTLS12,
 		},
 	}
-	
+
 	return srv.ListenAndServeTLS(certFile, keyFile)
 }
 

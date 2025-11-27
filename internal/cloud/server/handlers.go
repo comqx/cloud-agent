@@ -17,21 +17,21 @@ func (s *Server) listAgents(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		}
 	}()
-	
+
 	agents, err := s.agentMgr.ListAgents()
 	if err != nil {
 		log.Printf("Error listing agents: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	// 确保 protocol 字段有默认值（兼容旧数据）
 	for _, agent := range agents {
 		if agent.Protocol == "" {
 			agent.Protocol = "ws"
 		}
 	}
-	
+
 	log.Printf("Returning %d agents", len(agents))
 	c.JSON(http.StatusOK, agents)
 }
@@ -62,6 +62,24 @@ func (s *Server) deleteAgent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "agent deleted"})
+}
+
+// updateAgent 更新 Agent
+func (s *Server) updateAgent(c *gin.Context) {
+	agentID := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	agent, err := s.agentMgr.UpdateAgent(agentID, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, agent)
 }
 
 // createTask 创建任务

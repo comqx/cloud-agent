@@ -22,7 +22,8 @@ type Agent struct {
 	Version     string      `json:"version"`
 	Status      AgentStatus `json:"status" gorm:"type:varchar(20);default:'unknown'"`
 	LastSeen    *time.Time  `json:"last_seen"`
-	Metadata    string      `json:"metadata" gorm:"type:text"` // JSON 格式的元数据
+	Tags        []string    `json:"tags" gorm:"serializer:json"` // Agent 标签
+	Metadata    string      `json:"metadata" gorm:"type:text"`   // JSON 格式的元数据
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
 }

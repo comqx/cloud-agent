@@ -90,6 +90,36 @@ func (m *Manager) RegisterAgent(agentID string, conn *common.WSConnection, data 
 	return agentID, nil
 }
 
+// UpdateAgent 更新 Agent 信息
+func (m *Manager) UpdateAgent(agentID string, updates map[string]interface{}) (*common.Agent, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agent, exists := m.agents[agentID]
+	if !exists {
+		// 如果内存中不存在，尝试从数据库获取
+		var err error
+		agent, err = m.db.GetAgent(agentID)
+		if err != nil {
+			return nil, err
+		}
+		// 加载到内存
+		m.agents[agentID] = agent
+	}
+
+	// 更新字段
+	if tags, ok := updates["tags"].([]string); ok {
+		agent.Tags = tags
+	}
+
+	// 保存到数据库
+	if err := m.db.UpdateAgent(agent); err != nil {
+		return nil, err
+	}
+
+	return agent, nil
+}
+
 // UnregisterAgent 注销 Agent
 func (m *Manager) UnregisterAgent(agentID string) {
 	m.mu.Lock()
@@ -194,7 +224,7 @@ func (m *Manager) ListAgents() ([]*common.Agent, error) {
 		if agent.Protocol == "" {
 			agent.Protocol = "ws"
 		}
-		
+
 		if connectedAgents[agent.ID] {
 			// 有连接，状态为在线
 			agent.Status = common.AgentStatusOnline

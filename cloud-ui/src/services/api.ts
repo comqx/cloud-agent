@@ -15,6 +15,7 @@ export interface Agent {
   protocol?: string; // 连接协议: ws 或 wss
   status: 'online' | 'offline' | 'error';
   last_seen?: string;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +60,7 @@ export const agentAPI = {
   list: () => api.get<Agent[]>('/agents'),
   get: (id: string) => api.get<Agent>(`/agents/${id}`),
   getStatus: (id: string) => api.get<{ status: string }>(`/agents/${id}/status`),
+  update: (id: string, data: Partial<Agent>) => api.put<Agent>(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),
 };
 

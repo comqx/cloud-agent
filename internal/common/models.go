@@ -15,18 +15,19 @@ const (
 
 // Agent Agent 节点信息
 type Agent struct {
-	ID          string      `json:"id" gorm:"primaryKey"`
-	Name        string      `json:"name" gorm:"not null"`
-	Hostname    string      `json:"hostname"`
-	IP          string      `json:"ip"`
-	Version     string      `json:"version"`
-	Env         string      `json:"env" gorm:"index"` // K8s 集群名称
-	Protocol    string      `json:"protocol" gorm:"type:varchar(10);default:'ws'"` // 连接协议: ws 或 wss
-	Status      AgentStatus `json:"status" gorm:"default:'offline'"`
-	LastSeen    *time.Time  `json:"last_seen"`
-	Metadata    string      `json:"metadata" gorm:"type:text"` // JSON 格式的元数据
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID        string      `json:"id" gorm:"primaryKey"`
+	Name      string      `json:"name" gorm:"not null"`
+	Hostname  string      `json:"hostname"`
+	IP        string      `json:"ip"`
+	Version   string      `json:"version"`
+	Env       string      `json:"env" gorm:"index"`                              // K8s 集群名称
+	Protocol  string      `json:"protocol" gorm:"type:varchar(10);default:'ws'"` // 连接协议: ws 或 wss
+	Status    AgentStatus `json:"status" gorm:"default:'offline'"`
+	LastSeen  *time.Time  `json:"last_seen"`
+	Tags      []string    `json:"tags" gorm:"serializer:json"` // Agent 标签
+	Metadata  string      `json:"metadata" gorm:"type:text"`   // JSON 格式的元数据
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 // TaskType 任务类型
@@ -35,13 +36,13 @@ type TaskType string
 const (
 	TaskTypeShell TaskType = "shell"
 	// 数据库类型
-	TaskTypeMySQL        TaskType = "mysql"
-	TaskTypePostgres     TaskType = "postgres"
-	TaskTypeRedis        TaskType = "redis"
-	TaskTypeMongo        TaskType = "mongo"
+	TaskTypeMySQL         TaskType = "mysql"
+	TaskTypePostgres      TaskType = "postgres"
+	TaskTypeRedis         TaskType = "redis"
+	TaskTypeMongo         TaskType = "mongo"
 	TaskTypeElasticsearch TaskType = "elasticsearch"
-	TaskTypeClickHouse   TaskType = "clickhouse"
-	TaskTypeDoris        TaskType = "doris"
+	TaskTypeClickHouse    TaskType = "clickhouse"
+	TaskTypeDoris         TaskType = "doris"
 	// 兼容旧版本
 	TaskTypeSQL TaskType = "sql" // 已废弃，使用 mysql
 	// 其他类型
@@ -54,28 +55,28 @@ const (
 type TaskStatus string
 
 const (
-	TaskStatusPending TaskStatus = "pending"
-	TaskStatusRunning TaskStatus = "running"
-	TaskStatusSuccess TaskStatus = "success"
-	TaskStatusFailed  TaskStatus = "failed"
+	TaskStatusPending  TaskStatus = "pending"
+	TaskStatusRunning  TaskStatus = "running"
+	TaskStatusSuccess  TaskStatus = "success"
+	TaskStatusFailed   TaskStatus = "failed"
 	TaskStatusCanceled TaskStatus = "canceled"
 )
 
 // Task 任务信息
 type Task struct {
-	ID          string     `json:"id" gorm:"primaryKey"`
-	AgentID     string     `json:"agent_id" gorm:"index;not null"`
-	Type        TaskType   `json:"type" gorm:"not null"`
-	Status      TaskStatus `json:"status" gorm:"default:'pending'"`
-	Command     string     `json:"command" gorm:"type:text"` // 执行的命令或脚本内容
-	Params      string     `json:"params" gorm:"type:text"`  // JSON 格式的参数
-	FileID      string     `json:"file_id" gorm:"index"`     // 关联的文件ID（如果有）
-	Result      string     `json:"result" gorm:"type:text"`   // 执行结果
-	Error       string     `json:"error" gorm:"type:text"`   // 错误信息
-	StartedAt   *time.Time `json:"started_at"`
-	FinishedAt  *time.Time `json:"finished_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID         string     `json:"id" gorm:"primaryKey"`
+	AgentID    string     `json:"agent_id" gorm:"index;not null"`
+	Type       TaskType   `json:"type" gorm:"not null"`
+	Status     TaskStatus `json:"status" gorm:"default:'pending'"`
+	Command    string     `json:"command" gorm:"type:text"` // 执行的命令或脚本内容
+	Params     string     `json:"params" gorm:"type:text"`  // JSON 格式的参数
+	FileID     string     `json:"file_id" gorm:"index"`     // 关联的文件ID（如果有）
+	Result     string     `json:"result" gorm:"type:text"`  // 执行结果
+	Error      string     `json:"error" gorm:"type:text"`   // 错误信息
+	StartedAt  *time.Time `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // Log 日志记录
@@ -105,4 +106,3 @@ type TaskFile struct {
 	TaskID string `json:"task_id" gorm:"index;not null"`
 	FileID string `json:"file_id" gorm:"index;not null"`
 }
-
