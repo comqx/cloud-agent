@@ -12,8 +12,8 @@
 # - 有效期: -days 参数（当前 3650 天，约 10 年）
 # - 私钥长度: genrsa 的位数（当前 2048）
 
-CERT_DIR="${1:-./certs}"
-HOST="${2:-localhost}"
+CERT_DIR="${1:-../certs}"
+HOST="${2:-0.0.0.0}"
 # 支持多个额外的域名/IP（从第3个参数开始）
 shift 2 2>/dev/null || shift 1 2>/dev/null || true
 EXTRA_HOSTS=("$@")
@@ -37,42 +37,51 @@ openssl req -new -key "$CERT_DIR/server.key" -out "$CERT_DIR/server.csr" \
 # - keyUsage: 可添加 digitalSignature, nonRepudiation 等
 # - extendedKeyUsage: 可添加 clientAuth（双向认证）
 echo "生成自签证书..."
+# 生成临时配置文件
+EXT_FILE=$(mktemp)
+cat > "$EXT_FILE" <<EOF
+# [cloudagent] 是扩展配置段的名称，可以自定义（如改为 [my_extensions]）
+[cloudagent]
+# keyUsage: 密钥用途，可自定义添加更多用途
+# 可选值: digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement, keyCertSign, cRLSign, encipherOnly, decipherOnly
+keyUsage = keyEncipherment, dataEncipherment
+# extendedKeyUsage: 扩展密钥用途，可自定义添加 clientAuth（用于双向认证）
+# 可选值: serverAuth, clientAuth, codeSigning, emailProtection, timeStamping, OCSPSigning
+extendedKeyUsage = serverAuth
+# subjectAltName: 引用 alt_names 配置段（名称可自定义）
+subjectAltName = @alt_names
+
+# [alt_names] 是 SAN 配置段的名称，可以自定义（如改为 [san_list]）
+[alt_names]
+# DNS 条目：添加域名，可以添加多个（DNS.1, DNS.2, DNS.3...）
+DNS.1 = $HOST
+DNS.2 = localhost
+# IP 条目：添加 IP 地址，可以添加多个（IP.1, IP.2, IP.3...）
+IP.1 = 127.0.0.1
+EOF
+
+if [[ "$HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "IP.2 = $HOST" >> "$EXT_FILE"
+fi
+
+# 添加额外的域名/IP（从命令行参数）
+dns_count=3
+ip_count=3
+for extra_host in "${EXTRA_HOSTS[@]}"; do
+  if [[ "$extra_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "IP.$ip_count = $extra_host" >> "$EXT_FILE"
+    ((ip_count++))
+  else
+    echo "DNS.$dns_count = $extra_host" >> "$EXT_FILE"
+    ((dns_count++))
+  fi
+done
+
 openssl x509 -req -days 3650 -in "$CERT_DIR/server.csr" \
   -signkey "$CERT_DIR/server.key" -out "$CERT_DIR/server.crt" \
-  -extensions cloudagent -extfile <(
-    # [cloudagent] 是扩展配置段的名称，可以自定义（如改为 [my_extensions]）
-    echo "[cloudagent]"
-    # keyUsage: 密钥用途，可自定义添加更多用途
-    # 可选值: digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement, keyCertSign, cRLSign, encipherOnly, decipherOnly
-    echo "keyUsage = keyEncipherment, dataEncipherment"
-    # extendedKeyUsage: 扩展密钥用途，可自定义添加 clientAuth（用于双向认证）
-    # 可选值: serverAuth, clientAuth, codeSigning, emailProtection, timeStamping, OCSPSigning
-    echo "extendedKeyUsage = serverAuth"
-    # subjectAltName: 引用 alt_names 配置段（名称可自定义）
-    echo "subjectAltName = @alt_names"
-    # [alt_names] 是 SAN 配置段的名称，可以自定义（如改为 [san_list]）
-    echo "[alt_names]"
-    # DNS 条目：添加域名，可以添加多个（DNS.1, DNS.2, DNS.3...）
-    echo "DNS.1 = $HOST"
-    echo "DNS.2 = localhost"
-    # IP 条目：添加 IP 地址，可以添加多个（IP.1, IP.2, IP.3...）
-    echo "IP.1 = 127.0.0.1"
-    if [[ "$HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      echo "IP.2 = $HOST"
-    fi
-    # 添加额外的域名/IP（从命令行参数）
-    dns_count=3
-    ip_count=3
-    for extra_host in "${EXTRA_HOSTS[@]}"; do
-      if [[ "$extra_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "IP.$ip_count = $extra_host"
-        ((ip_count++))
-      else
-        echo "DNS.$dns_count = $extra_host"
-        ((dns_count++))
-      fi
-    done
-  )
+  -extensions cloudagent -extfile "$EXT_FILE"
+
+rm -f "$EXT_FILE"
 
 # 清理 CSR 文件
 rm "$CERT_DIR/server.csr"

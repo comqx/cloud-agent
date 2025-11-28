@@ -38,3 +38,22 @@ agent:
       memory: "256Mi"
       cpu: "200m"
 
+ui:
+  enabled: true
+  image:
+    repository: tiangong-deploy/ui
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    port: 80
+  # Cloud 服务地址（用于 Nginx 反向代理）
+  cloudURL: "http://tiangong-deploy-cloud:8080"
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+

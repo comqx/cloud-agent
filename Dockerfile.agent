@@ -37,5 +37,5 @@ ENV AGENT_ID=
 ENV AGENT_NAME=agent
 ENV K8S_CLUSTER_NAME=
 
-CMD ["./agent", "-cloud", "${CLOUD_URL}", "-id", "${AGENT_ID}", "-name", "${AGENT_NAME}"]
+CMD ["sh", "-c", "exec ./agent -cloud \"${CLOUD_URL}\" -id \"${AGENT_ID}\" -name \"${AGENT_NAME}\""]
 
