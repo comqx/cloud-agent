@@ -68,15 +68,15 @@ docker-buildx-setup:
 # 单独构建镜像（单架构，本地使用）
 docker-build-cloud:
 	@echo "Building cloud image: $(IMAGE_CLOUD)"
-	@docker build -f deployments/Dockerfile.cloud -t $(IMAGE_CLOUD) .
+	@docker build -f Dockerfile.cloud -t $(IMAGE_CLOUD) .
 
 docker-build-agent:
 	@echo "Building agent image: $(IMAGE_AGENT)"
-	@docker build -f deployments/Dockerfile.agent -t $(IMAGE_AGENT) .
+	@docker build -f Dockerfile.agent -t $(IMAGE_AGENT) .
 
 docker-build-ui:
 	@echo "Building UI image: $(IMAGE_UI)"
-	@docker build -f deployments/Dockerfile.ui -t $(IMAGE_UI) .
+	@docker build -f Dockerfile.ui -t $(IMAGE_UI) .
 
 docker-build-all: docker-build-cloud docker-build-agent docker-build-ui
 	@echo "All images built successfully!"
@@ -88,7 +88,7 @@ docker-build-cloud-multi: docker-buildx-setup
 	@echo "Note: Multi-arch images cannot be loaded locally. Use docker-push-cloud to push to registry."
 	@docker buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		-f deployments/Dockerfile.cloud \
+		-f Dockerfile.cloud \
 		-t $(IMAGE_CLOUD) \
 		.
 
@@ -97,7 +97,7 @@ docker-build-agent-multi: docker-buildx-setup
 	@echo "Note: Multi-arch images cannot be loaded locally. Use docker-push-agent to push to registry."
 	@docker buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		-f deployments/Dockerfile.agent \
+		-f Dockerfile.agent \
 		-t $(IMAGE_AGENT) \
 		.
 
@@ -106,7 +106,7 @@ docker-build-ui-multi: docker-buildx-setup
 	@echo "Note: Multi-arch images cannot be loaded locally. Use docker-push-ui to push to registry."
 	@docker buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		-f deployments/Dockerfile.ui \
+		-f Dockerfile.ui \
 		-t $(IMAGE_UI) \
 		.
 
@@ -121,7 +121,7 @@ docker-push-cloud: docker-buildx-setup
 	@echo "Building and pushing multi-arch cloud image: $(IMAGE_CLOUD) [$(DOCKER_PLATFORMS)]"
 	@docker buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		-f deployments/Dockerfile.cloud \
+		-f Dockerfile.cloud \
 		-t $(IMAGE_CLOUD) \
 		--push \
 		.
@@ -130,7 +130,7 @@ docker-push-agent: docker-buildx-setup
 	@echo "Building and pushing multi-arch agent image: $(IMAGE_AGENT) [$(DOCKER_PLATFORMS)]"
 	@docker buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		-f deployments/Dockerfile.agent \
+		-f Dockerfile.agent \
 		-t $(IMAGE_AGENT) \
 		--push \
 		.
@@ -139,7 +139,7 @@ docker-push-ui: docker-buildx-setup
 	@echo "Building and pushing multi-arch UI image: $(IMAGE_UI) [$(DOCKER_PLATFORMS)]"
 	@docker buildx build \
 		--platform $(DOCKER_PLATFORMS) \
-		-f deployments/Dockerfile.ui \
+		-f Dockerfile.ui \
 		-t $(IMAGE_UI) \
 		--push \
 		.

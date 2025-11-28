@@ -25,8 +25,11 @@ agent:
     repository: tiangong-deploy/agent
     tag: latest
     pullPolicy: IfNotPresent
-  cloudURL: "http://tiangong-deploy-cloud:8080"
+  # Cloud 服务地址，支持直接使用 wss:// 协议（推荐），也支持 https:// 自动转换
+  cloudURL: "wss://tiangong-deploy-cloud:8443"  # 使用 wss:// 协议
   clusterName: ""  # K8s 集群名称，如果为空则从环境变量获取
+  # 如果使用自签证书，需要跳过证书验证
+  wsSkipVerify: true  # 对于自签证书设置为 true，受信任证书设置为 false
   resources:
     requests:
       memory: "128Mi"

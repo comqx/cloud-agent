@@ -43,12 +43,17 @@ func (c *Client) Connect() error {
 	}
 
 	// 转换为 WebSocket URL
+	// 支持直接使用 ws:// 或 wss:// 协议，也支持 http:// 或 https:// 自动转换
 	if u.Scheme == "http" {
 		u.Scheme = "ws"
 	} else if u.Scheme == "https" {
 		u.Scheme = "wss"
 	}
-	u.Path = "/ws"
+	// 如果已经是 ws:// 或 wss://，保持不变
+	// 确保路径是 /ws
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/ws"
+	}
 
 	// 创建 WebSocket Dialer
 	dialer := websocket.DefaultDialer

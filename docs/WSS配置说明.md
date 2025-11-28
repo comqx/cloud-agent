@@ -109,7 +109,7 @@ services:
   cloud:
     build:
       context: ..
-      dockerfile: deployments/Dockerfile.cloud
+      dockerfile: Dockerfile.cloud
     ports:
       - "8080:8080"
       - "8443:8443"  # HTTPS/WSS 端口
@@ -135,7 +135,7 @@ services:
   agent:
     build:
       context: ..
-      dockerfile: deployments/Dockerfile.agent
+      dockerfile: Dockerfile.agent
     environment:
       - CLOUD_URL=https://cloud:8443  # 使用 HTTPS，自动使用 WSS
       - WS_SKIP_VERIFY=true  # 跳过证书验证（自签证书）

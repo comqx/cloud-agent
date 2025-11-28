@@ -4,7 +4,7 @@ services:
   cloud:
     build:
       context: ..
-      dockerfile: deployments/Dockerfile.cloud
+      dockerfile: Dockerfile.cloud
     ports:
       - "8080:8080"
     volumes:
@@ -20,7 +20,7 @@ services:
   agent:
     build:
       context: ..
-      dockerfile: deployments/Dockerfile.agent
+      dockerfile: Dockerfile.agent
     depends_on:
       - cloud
     environment:

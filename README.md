@@ -266,10 +266,14 @@ go run cmd/cloud/main.go -addr :8443 \
 # 设置 K8s 集群名称（可选）
 export K8S_CLUSTER_NAME=production
 
-# HTTP 模式
+# HTTP/WS 模式
 go run cmd/agent/main.go -cloud http://localhost:8080 -name my-agent
+# 或者直接使用 ws:// 协议
+go run cmd/agent/main.go -cloud ws://localhost:8080 -name my-agent
 
-# WSS 模式（使用 HTTPS URL）
+# WSS 模式（推荐直接使用 wss:// 协议）
+go run cmd/agent/main.go -cloud wss://localhost:8443 -name my-agent
+# 也支持使用 https:// 自动转换为 wss://（向后兼容）
 go run cmd/agent/main.go -cloud https://localhost:8443 -name my-agent
 ```
 
@@ -376,7 +380,10 @@ chmod +x scripts/generate-cert.sh
 
 3. **启动 Agent（连接 WSS）**：
 ```bash
-# 使用 HTTPS URL，自动使用 WSS
+# 推荐：直接使用 wss:// 协议
+./bin/agent -cloud wss://localhost:8443
+
+# 也支持使用 https:// 自动转换为 wss://（向后兼容）
 ./bin/agent -cloud https://localhost:8443
 
 # 对于自签证书，默认跳过证书验证

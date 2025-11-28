@@ -25,6 +25,8 @@ spec:
         env:
         - name: CLOUD_URL
           value: {{ .Values.agent.cloudURL | quote }}
+        - name: WS_SKIP_VERIFY
+          value: {{ .Values.agent.wsSkipVerify | default true | quote }}
         - name: AGENT_ID
           valueFrom:
             fieldRef:

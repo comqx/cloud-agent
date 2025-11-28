@@ -1,0 +1,215 @@
+---
+# ServiceAccount: Agent 服务账户
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloud-agent
+  namespace: default
+  labels:
+    app: cloud-agent
+    component: agent
+
+---
+# ClusterRole: Agent 需要的 Kubernetes 权限
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloud-agent
+  labels:
+    app: cloud-agent
+    component: agent
+rules:
+  # 核心资源权限
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/exec
+      - pods/log
+      - pods/status
+      - services
+      - services/status
+      - endpoints
+      - configmaps
+      - secrets
+      - namespaces
+      - nodes
+      - persistentvolumes
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # 应用资源权限
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - deployments/status
+      - replicasets
+      - replicasets/status
+      - statefulsets
+      - statefulsets/status
+      - daemonsets
+      - daemonsets/status
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Job 和 CronJob 权限
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - jobs/status
+      - cronjobs
+      - cronjobs/status
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # RBAC 权限（用于管理角色和绑定）
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # 网络资源权限
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # 存储资源权限
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+      - volumeattachments
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # 自定义资源定义（CRD）权限
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources:
+      - customresourcedefinitions
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # 所有自定义资源（CR）权限 - 允许操作所有 CRD 定义的资源
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # API 发现权限（用于动态发现资源类型）
+  - apiGroups: [""]
+    resources:
+      - apiservices
+    verbs: ["get", "list", "watch"]
+
+  # 所有 API Groups 的发现权限
+  - nonResourceURLs: ["/api/*", "/apis/*", "/api/v1/*", "/apis/*/*"]
+    verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding: 将 ClusterRole 绑定到 ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloud-agent
+  labels:
+    app: cloud-agent
+    component: agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cloud-agent
+subjects:
+  - kind: ServiceAccount
+    name: cloud-agent
+    namespace: default
+
+---
+# Deployment: Agent 部署配置
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-agent
+  namespace: default
+  labels:
+    app: cloud-agent
+    component: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-agent
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: cloud-agent
+        component: agent
+    spec:
+      serviceAccountName: cloud-agent
+      containers:
+      - name: agent
+        image: docker.io/comqx/cloud-agent-agent:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        # Cloud 服务地址（根据实际情况修改）
+        # 支持直接使用 wss:// 协议（推荐），也支持 https:// 自动转换为 wss://
+        # 注意：需要根据实际的 cloud 服务名称和端口修改
+        # 如果 cloud 服务在同一个命名空间，使用服务名称；否则使用完整域名
+        - name: CLOUD_URL
+          value: "wss://tiangong-deploy-cloud:8443"  # 使用 wss:// 协议，根据实际情况修改服务名和端口
+        # 如果使用自签证书，需要跳过证书验证
+        - name: WS_SKIP_VERIFY
+          value: "true"  # 对于自签证书设置为 true，受信任证书设置为 false
+        # Agent ID 和名称使用 Pod 名称
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: AGENT_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        # K8s 集群名称（可选，根据实际情况设置）
+        - name: K8S_CLUSTER_NAME
+          value: "local"  # 可以设置为实际的集群名称，如 "production-cluster"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        # 健康检查（如果 agent 没有 HTTP 端点，可以移除或使用其他方式）
+        # 注意：agent 主要通过 WebSocket 连接，可能没有 HTTP 健康检查端点
+        # 如果需要健康检查，可以考虑使用 exec 方式或移除此部分
+        # livenessProbe:
+        #   exec:
+        #     command:
+        #       - /bin/sh
+        #       - -c
+        #       - "ps aux | grep '[a]gent' || exit 1"
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        #   timeoutSeconds: 5
+        #   failureThreshold: 3
+        # readinessProbe:
+        #   exec:
+        #     command:
+        #       - /bin/sh
+        #       - -c
+        #       - "ps aux | grep '[a]gent' || exit 1"
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 5
+        #   timeoutSeconds: 3
+        #   failureThreshold: 3
+      # 重启策略
+      restartPolicy: Always
+      # 可选：节点选择器
+      # nodeSelector:
+      #   kubernetes.io/os: linux
+      # 可选：容忍度
+      # tolerations:
+      #   - key: "node-role.kubernetes.io/master"
+      #     operator: "Exists"
+      #     effect: "NoSchedule"
+

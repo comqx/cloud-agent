@@ -66,7 +66,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./deployments/Dockerfile.cloud
+          file: ./Dockerfile.cloud
           platforms: ${{ env.PLATFORMS }}
           push: true
           tags: ${{ steps.meta-cloud.outputs.tags }}
@@ -79,7 +79,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./deployments/Dockerfile.agent
+          file: ./Dockerfile.agent
           platforms: ${{ env.PLATFORMS }}
           push: true
           tags: ${{ steps.meta-agent.outputs.tags }}
@@ -92,7 +92,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./deployments/Dockerfile.ui
+          file: ./Dockerfile.ui
           platforms: ${{ env.PLATFORMS }}
           push: true
           tags: ${{ steps.meta-ui.outputs.tags }}
