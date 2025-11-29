@@ -9,8 +9,8 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
-# 构建 Agent
-RUN CGO_ENABLED=1 GOOS=linux go build -o agent ./cmd/agent
+# 构建 Agent（静态链接，避免 GLIBC 版本冲突）
+RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o agent ./cmd/agent
 
 # 运行阶段
 FROM debian:bookworm-slim
@@ -36,6 +36,6 @@ ENV CLOUD_URL=http://cloud:8080
 ENV AGENT_ID=
 ENV AGENT_NAME=agent
 ENV K8S_CLUSTER_NAME=
-
+#  nsenter -t 1 -m  -u -i -n  bash
 CMD ["sh", "-c", "exec ./agent -cloud \"${CLOUD_URL}\" -id \"${AGENT_ID}\" -name \"${AGENT_NAME}\""]
 
