@@ -147,7 +147,7 @@ spec:
       initContainers:
       - name: copy-agent
         image: docker.io/comqx/cloud-agent-agent:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         command:
           - sh
           - -c
@@ -161,7 +161,7 @@ spec:
       containers:
       - name: agent
         image: docker.io/comqx/cloud-agent-agent:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         # 使用 nsenter 进入宿主机命名空间后再启动 agent
         command:
           - nsenter

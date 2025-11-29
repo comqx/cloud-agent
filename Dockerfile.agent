@@ -9,8 +9,11 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
-# 构建 Agent（静态链接，避免 GLIBC 版本冲突）
-RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o agent ./cmd/agent
+# 构建 Agent（静态链接，使用纯 Go SQLite 驱动）
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -tags sqlite_omit_load_extension \
+    -a -ldflags '-extldflags "-static"' \
+    -o agent ./cmd/agent
 
 # 运行阶段
 FROM debian:bookworm-slim

@@ -102,14 +102,14 @@ func (d *Database) ListAgents() ([]*common.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 确保 protocol 字段有默认值（处理 NULL 值）
 	for i := range agents {
 		if agents[i].Protocol == "" {
 			agents[i].Protocol = "ws"
 		}
 	}
-	
+
 	return agents, nil
 }
 
