@@ -8,19 +8,39 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tiangong-deploy/tiangong-deploy/internal/agent/security"
 	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // ShellExecutor Shell 命令执行器
 type ShellExecutor struct {
-	timeout time.Duration
+	timeout   time.Duration
+	validator *security.CommandValidator
+	audit     *security.AuditLogger
 }
 
 // NewShellExecutor 创建 Shell 执行器
-func NewShellExecutor() *ShellExecutor {
-	return &ShellExecutor{
-		timeout: 30 * time.Minute, // 默认超时 30 分钟
+func NewShellExecutor(agentID string, securityConfigPath string) (*ShellExecutor, error) {
+	// 加载安全配置
+	config, err := security.LoadSecurityConfig(securityConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load security config: %w", err)
 	}
+
+	// 创建命令验证器
+	validator, err := security.NewCommandValidator(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create command validator: %w", err)
+	}
+
+	// 创建审计日志记录器
+	audit := security.NewAuditLogger(agentID)
+
+	return &ShellExecutor{
+		timeout:   30 * time.Minute, // 默认超时 30 分钟
+		validator: validator,
+		audit:     audit,
+	}, nil
 }
 
 // Type 返回执行器类型
@@ -33,6 +53,20 @@ func (e *ShellExecutor) Execute(taskID string, command string, params map[string
 	if command == "" {
 		return "", common.NewError("command is empty")
 	}
+
+	// 验证命令是否允许执行
+	startTime := time.Now()
+	if err := e.validator.ValidateCommand(command); err != nil {
+		// 记录被阻止的命令
+		e.audit.LogCommandAttempt(taskID, string(common.TaskTypeShell), command, false, err.Error())
+		if logCallback != nil {
+			logCallback(taskID, "error", fmt.Sprintf("Command blocked by security policy: %v", err))
+		}
+		return "", fmt.Errorf("security validation failed: %w", err)
+	}
+
+	// 记录允许的命令
+	e.audit.LogCommandAttempt(taskID, string(common.TaskTypeShell), command, true, "")
 
 	if logCallback != nil {
 		logCallback(taskID, "info", "Executing command: "+command)
@@ -104,6 +138,14 @@ func (e *ShellExecutor) Execute(taskID string, command string, params map[string
 	// 等待命令完成
 	err = cmd.Wait()
 	result := output.String()
+	duration := time.Since(startTime)
+
+	// 记录命令执行结果
+	resultStatus := "success"
+	if err != nil {
+		resultStatus = "failed"
+	}
+	e.audit.LogCommandResult(taskID, string(common.TaskTypeShell), command, resultStatus, err, duration)
 
 	if err != nil {
 		if logCallback != nil {
@@ -124,4 +166,3 @@ func (e *ShellExecutor) Cancel(taskID string) error {
 	// Shell 执行器的取消由 Manager 通过 context 处理
 	return nil
 }
-

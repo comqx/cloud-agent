@@ -81,7 +81,9 @@ func LoadPluginsFromConfig(config *PluginConfig, manager *Manager) error {
 
 		switch taskType {
 		case common.TaskTypeShell:
-			exec = plugins.NewShellExecutor()
+			if exec, err = plugins.NewShellExecutor(manager.agentID, manager.securityConfigPath); err != nil {
+				return fmt.Errorf("failed to create shell executor: %w", err)
+			}
 		case common.TaskTypeMySQL:
 			exec = plugins.NewMySQLExecutor(pluginDef.Config)
 		case common.TaskTypeSQL:

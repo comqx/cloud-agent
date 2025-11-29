@@ -21,7 +21,7 @@ type Agent struct {
 // NewAgent 创建 Agent
 func NewAgent(cloudURL, agentID, agentName string) *Agent {
 	cl := client.NewClient(cloudURL, agentID, agentName)
-	
+
 	// 尝试从配置文件加载执行器，如果配置文件不存在则使用默认执行器
 	var execMgr *executor.Manager
 	configPath := os.Getenv("AGENT_PLUGINS_CONFIG")
@@ -38,14 +38,27 @@ func NewAgent(cloudURL, agentID, agentName string) *Agent {
 			}
 		}
 	}
-	
+
+	// 获取安全配置文件路径
+	securityConfigPath := os.Getenv("AGENT_SECURITY_CONFIG")
+	if securityConfigPath == "" {
+		securityConfigPath = "configs/agent-security.yaml"
+		if _, err := os.Stat(securityConfigPath); os.IsNotExist(err) {
+			securityConfigPath = "./configs/agent-security.yaml"
+			if _, err := os.Stat(securityConfigPath); os.IsNotExist(err) {
+				wd, _ := os.Getwd()
+				securityConfigPath = filepath.Join(wd, "configs", "agent-security.yaml")
+			}
+		}
+	}
+
 	// 尝试加载配置文件
-	if execMgrWithConfig, err := executor.NewManagerWithConfig(configPath); err == nil {
+	if execMgrWithConfig, err := executor.NewManagerWithConfig(agentID, configPath, securityConfigPath); err == nil {
 		execMgr = execMgrWithConfig
 		log.Printf("Loaded executor plugins from config: %s", configPath)
 	} else {
 		// 配置文件不存在或加载失败，使用默认执行器
-		execMgr = executor.NewManager()
+		execMgr = executor.NewManager(agentID)
 		log.Printf("Using default executors (config file not found or invalid: %s)", configPath)
 	}
 

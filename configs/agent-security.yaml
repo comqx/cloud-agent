@@ -1,0 +1,144 @@
+# Agent 安全配置
+# 用于限制 Agent 可以执行的命令
+
+# 是否启用命令白名单
+# true: 只允许执行白名单中的命令
+# false: 允许所有命令（仅检查黑名单）
+command_whitelist_enabled: true
+
+# 允许的命令列表
+# 使用正则表达式匹配命令
+allowed_commands:
+  # ========== 系统信息查询 ==========
+  - pattern: "^(hostname|uptime|date|whoami|pwd)$"
+    description: "基本系统信息命令"
+  
+  - pattern: "^uname\\s+-[a-z]+"
+    description: "系统信息查询"
+  
+  # ========== 文件操作（只读） ==========
+  - pattern: "^ls\\s+(-[a-zA-Z]+\\s+)?(/[^;|&]*)?$"
+    description: "列出文件（限制路径）"
+  
+  - pattern: "^cat\\s+/[^;|&]*$"
+    description: "读取文件内容"
+  
+  - pattern: "^head\\s+(-n\\s+\\d+\\s+)?/[^;|&]*$"
+    description: "查看文件头部"
+  
+  - pattern: "^tail\\s+(-[fnc]\\s+\\d+\\s+)?/[^;|&]*$"
+    description: "查看文件尾部"
+  
+  - pattern: "^grep\\s+.*"
+    description: "文本搜索"
+  
+  - pattern: "^find\\s+/[^;|&]*\\s+.*"
+    description: "查找文件"
+  
+  # ========== Docker 操作（只读） ==========
+  - pattern: "^docker\\s+(ps|images|version|info)\\s*.*"
+    description: "Docker 只读操作"
+  
+  - pattern: "^docker\\s+inspect\\s+[a-zA-Z0-9_-]+"
+    description: "Docker 资源检查"
+  
+  - pattern: "^docker\\s+logs\\s+(-[a-z]+\\s+)?[a-zA-Z0-9_-]+"
+    description: "Docker 日志查看"
+  
+  # ========== Kubernetes 操作（只读） ==========
+  - pattern: "^kubectl\\s+get\\s+.*"
+    description: "Kubernetes 资源查询"
+  
+  - pattern: "^kubectl\\s+describe\\s+.*"
+    description: "Kubernetes 资源描述"
+  
+  - pattern: "^kubectl\\s+logs\\s+.*"
+    description: "Kubernetes 日志查看"
+  
+  - pattern: "^kubectl\\s+top\\s+(nodes|pods)\\s*.*"
+    description: "Kubernetes 资源使用情况"
+  
+  # ========== 网络诊断 ==========
+  - pattern: "^(ping|traceroute|nslookup|dig)\\s+[a-zA-Z0-9.-]+"
+    description: "网络诊断工具"
+  
+  - pattern: "^curl\\s+(-[a-zA-Z]+\\s+)*https?://.*"
+    description: "HTTP 请求（只允许 http/https）"
+  
+  - pattern: "^netstat\\s+.*"
+    description: "网络连接状态"
+  
+  # ========== 进程管理（只读） ==========
+  - pattern: "^ps\\s+.*"
+    description: "进程查看"
+  
+  - pattern: "^top\\s*(-[a-z]+\\s*)*"
+    description: "系统资源监控"
+  
+  # ========== 磁盘使用 ==========
+  - pattern: "^df\\s+(-[a-z]+\\s+)?.*"
+    description: "磁盘使用情况"
+  
+  - pattern: "^du\\s+(-[a-z]+\\s+)?/[^;|&]*$"
+    description: "目录大小统计"
+
+# 禁止的命令模式（黑名单）
+# 即使白名单未启用，这些命令也会被阻止
+blocked_patterns:
+  # ========== 危险的删除操作 ==========
+  - pattern: ".*rm\\s+(-[a-z]*r[a-z]*f[a-z]*|--recursive.*--force)\\s+/.*"
+    reason: "禁止递归强制删除根目录文件"
+  
+  - pattern: ".*rm\\s+-rf\\s+(/|/bin|/boot|/dev|/etc|/lib|/proc|/sbin|/sys|/usr|/var).*"
+    reason: "禁止删除系统关键目录"
+  
+  # ========== 系统关机/重启 ==========
+  - pattern: ".*(shutdown|poweroff|halt|reboot|init\\s+[06]).*"
+    reason: "禁止关机和重启命令"
+  
+  # ========== 磁盘格式化 ==========
+  - pattern: ".*(mkfs|fdisk|parted|gdisk|cfdisk).*"
+    reason: "禁止磁盘分区和格式化操作"
+  
+  # ========== 危险的网络操作 ==========
+  - pattern: ".*(iptables|ip6tables|nft)\\s+(flush|delete).*"
+    reason: "禁止清空防火墙规则"
+  
+  # ========== 用户管理 ==========
+  - pattern: ".*(useradd|userdel|usermod|passwd).*"
+    reason: "禁止用户管理操作"
+  
+  # ========== 权限提升 ==========
+  - pattern: ".*(sudo|su)\\s+.*"
+    reason: "禁止权限提升"
+  
+  # ========== 包管理（写操作） ==========
+  - pattern: ".*(apt|yum|dnf|zypper)\\s+(install|remove|purge|erase).*"
+    reason: "禁止软件包安装和卸载"
+  
+  # ========== 内核模块 ==========
+  - pattern: ".*(insmod|rmmod|modprobe).*"
+    reason: "禁止加载/卸载内核模块"
+  
+  # ========== 危险的文件操作 ==========
+  - pattern: ".*>\\s*/dev/(sda|sdb|sdc|nvme).*"
+    reason: "禁止直接写入磁盘设备"
+  
+  - pattern: ".*(dd|shred)\\s+.*of=/dev/.*"
+    reason: "禁止使用 dd 写入设备"
+  
+  # ========== 命令注入防护 ==========
+  - pattern: ".*;.*"
+    reason: "禁止使用分号连接多个命令"
+  
+  - pattern: ".*\\|\\|.*"
+    reason: "禁止使用 || 连接命令"
+  
+  - pattern: ".*&&.*"
+    reason: "禁止使用 && 连接命令"
+  
+  - pattern: ".*`.*`.*"
+    reason: "禁止使用反引号执行命令"
+  
+  - pattern: ".*\\$\\(.*\\).*"
+    reason: "禁止使用 $() 执行命令"

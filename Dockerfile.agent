@@ -31,6 +31,7 @@ COPY --from=builder /app/agent .
 
 # 复制配置文件
 COPY configs/agent-plugins.yaml /app/configs/agent-plugins.yaml
+COPY configs/agent-security.yaml /app/configs/agent-security.yaml
 
 # 创建数据目录
 RUN mkdir -p /app/data
