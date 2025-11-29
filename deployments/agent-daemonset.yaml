@@ -152,6 +152,7 @@ spec:
           - sh
           - -c
           - |
+            rm -rf /host-agent/agent /host-agent/configs
             cp /app/agent /host-agent/agent
             cp -r /app/configs /host-agent/configs
             chmod +x /host-agent/agent
@@ -212,6 +213,7 @@ spec:
         volumeMounts:
         - name: host-agent
           mountPath: /host-agent
+        workingDir: /
       dnsPolicy: ClusterFirst
       enableServiceLinks: true
       hostIPC: true
