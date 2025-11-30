@@ -108,14 +108,32 @@ func (m *Manager) UpdateAgent(agentID string, updates map[string]interface{}) (*
 	}
 
 	// 更新字段
-	if tags, ok := updates["tags"].([]string); ok {
-		agent.Tags = tags
+	if tagsRaw, ok := updates["tags"]; ok {
+		// 处理不同类型的 tags 数据
+		switch v := tagsRaw.(type) {
+		case []string:
+			agent.Tags = v
+		case []interface{}:
+			// 从 JSON 解析时可能是 []interface{}
+			tags := make([]string, 0, len(v))
+			for _, item := range v {
+				if str, ok := item.(string); ok {
+					tags = append(tags, str)
+				}
+			}
+			agent.Tags = tags
+		case nil:
+			agent.Tags = []string{}
+		}
 	}
 
 	// 保存到数据库
 	if err := m.db.UpdateAgent(agent); err != nil {
 		return nil, err
 	}
+
+	// 更新内存中的 agent 对象
+	m.agents[agentID] = agent
 
 	return agent, nil
 }
@@ -223,6 +241,10 @@ func (m *Manager) ListAgents() ([]*common.Agent, error) {
 		// 确保 protocol 字段有默认值（兼容旧数据）
 		if agent.Protocol == "" {
 			agent.Protocol = "ws"
+		}
+		// 确保 tags 字段不为 nil
+		if agent.Tags == nil {
+			agent.Tags = []string{}
 		}
 
 		if connectedAgents[agent.ID] {

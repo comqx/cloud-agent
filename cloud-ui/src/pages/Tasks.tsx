@@ -69,24 +69,6 @@ export default function Tasks() {
     form.setFieldsValue({ agent_ids: undefined });
   };
 
-  // 处理全选/取消全选
-  const handleSelectAll = (selected: boolean) => {
-    const filteredAgents = getFilteredAgents();
-    const currentValues = form.getFieldValue('agent_ids') || [];
-    
-    if (selected) {
-      // 全选：添加所有未选中的 agent
-      const allAgentIds = filteredAgents.map(a => a.id);
-      const newValues = Array.from(new Set([...currentValues, ...allAgentIds]));
-      form.setFieldsValue({ agent_ids: newValues });
-    } else {
-      // 取消全选：移除所有当前筛选的 agent
-      const filteredAgentIds = filteredAgents.map(a => a.id);
-      const newValues = currentValues.filter((id: string) => !filteredAgentIds.includes(id));
-      form.setFieldsValue({ agent_ids: newValues });
-    }
-  };
-
   // 检查是否已全选
   const isAllSelected = () => {
     const filteredAgents = getFilteredAgents();
@@ -99,22 +81,52 @@ export default function Tasks() {
   // 处理选项选择
   const handleOptionSelect = (value: string) => {
     if (value === '__SELECT_ALL__') {
-      handleSelectAll(true);
+      // 全选：添加所有 agent ID
+      const filteredAgents = getFilteredAgents();
+      const allAgentIds = filteredAgents.map(a => a.id);
+      const currentValues = form.getFieldValue('agent_ids') || [];
+      const newValues = Array.from(new Set([...currentValues, ...allAgentIds]));
+      form.setFieldsValue({ agent_ids: newValues });
     }
   };
 
   // 处理选项取消选择
   const handleOptionDeselect = (value: string) => {
     if (value === '__SELECT_ALL__') {
-      handleSelectAll(false);
+      // 取消全选：移除所有当前筛选的 agent
+      const filteredAgents = getFilteredAgents();
+      const filteredAgentIds = filteredAgents.map(a => a.id);
+      const currentValues = form.getFieldValue('agent_ids') || [];
+      const newValues = currentValues.filter((id: string) => !filteredAgentIds.includes(id));
+      form.setFieldsValue({ agent_ids: newValues });
     }
   };
 
-  // 处理 Select 值变化，过滤掉全选选项
+  // 处理 Select 值变化
   const handleAgentIdsChange = (values: string[]) => {
-    // 过滤掉全选选项
-    const filteredValues = values.filter(v => v !== '__SELECT_ALL__');
-    form.setFieldsValue({ agent_ids: filteredValues });
+    const filteredAgents = getFilteredAgents();
+    const filteredAgentIds = filteredAgents.map(a => a.id);
+    const hasSelectAll = values.includes('__SELECT_ALL__');
+    const agentValues = values.filter(v => v !== '__SELECT_ALL__');
+    const allSelected = filteredAgentIds.length > 0 && filteredAgentIds.every((id: string) => agentValues.includes(id));
+    
+    // 如果全选选项被选中
+    if (hasSelectAll) {
+      // 确保所有 agent 都被选中
+      const allAgentIds = filteredAgents.map(a => a.id);
+      const newValues = Array.from(new Set([...agentValues, ...allAgentIds, '__SELECT_ALL__']));
+      form.setFieldsValue({ agent_ids: newValues });
+    } else {
+      // 如果全选选项未选中
+      if (allSelected) {
+        // 如果所有 agent 都被选中，自动添加全选标记（让复选框显示为选中）
+        const newValues = [...agentValues, '__SELECT_ALL__'];
+        form.setFieldsValue({ agent_ids: newValues });
+      } else {
+        // 如果未全选，保持当前状态（不包含全选标记）
+        form.setFieldsValue({ agent_ids: agentValues });
+      }
+    }
   };
 
   const loadFiles = async () => {
@@ -386,6 +398,32 @@ export default function Tasks() {
               onDeselect={handleOptionDeselect}
               onChange={handleAgentIdsChange}
               maxTagCount="responsive"
+              tagRender={(props) => {
+                // 不显示全选选项的标签
+                if (props.value === '__SELECT_ALL__') {
+                  return <></>;
+                }
+                // 使用默认的标签渲染
+                return (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      margin: '2px 4px',
+                      padding: '2px 8px',
+                      background: '#f0f0f0',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {props.label}
+                    <span
+                      onClick={props.onClose}
+                      style={{ marginLeft: '4px', cursor: 'pointer' }}
+                    >
+                      ×
+                    </span>
+                  </span>
+                );
+              }}
               filterOption={(input, option) => {
                 // 全选选项始终显示
                 if (option?.value === '__SELECT_ALL__') return true;
@@ -400,10 +438,15 @@ export default function Tasks() {
               }}
             >
               {getFilteredAgents().length > 0 && (
-                <Option key="__SELECT_ALL__" value="__SELECT_ALL__">
-                  <strong style={{ color: isAllSelected() ? '#1890ff' : '#000' }}>
-                    {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
-                  </strong>
+                <Option 
+                  key="__SELECT_ALL__" 
+                  value="__SELECT_ALL__"
+                  style={{ 
+                    fontWeight: 'bold',
+                    backgroundColor: isAllSelected() ? '#e6f7ff' : 'transparent'
+                  }}
+                >
+                  {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
                 </Option>
               )}
               {getFilteredAgents().map((agent) => (

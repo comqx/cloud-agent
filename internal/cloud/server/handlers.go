@@ -26,13 +26,21 @@ func (s *Server) listAgents(c *gin.Context) {
 	}
 
 	// 确保 protocol 字段有默认值（兼容旧数据）
+	// 确保 tags 字段不为 nil
 	for _, agent := range agents {
 		if agent.Protocol == "" {
 			agent.Protocol = "ws"
 		}
+		if agent.Tags == nil {
+			agent.Tags = []string{}
+		}
 	}
 
 	log.Printf("Returning %d agents", len(agents))
+	// 调试：打印第一个 agent 的 tags
+	if len(agents) > 0 {
+		log.Printf("Sample agent tags: %v (type: %T)", agents[0].Tags, agents[0].Tags)
+	}
 	c.JSON(http.StatusOK, agents)
 }
 
@@ -79,6 +87,12 @@ func (s *Server) updateAgent(c *gin.Context) {
 		return
 	}
 
+	// 确保 tags 字段不为 nil
+	if agent.Tags == nil {
+		agent.Tags = []string{}
+	}
+
+	log.Printf("Updated agent %s, tags: %v", agentID, agent.Tags)
 	c.JSON(http.StatusOK, agent)
 }
 

@@ -1,9 +1,11 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -11,6 +13,9 @@ import (
 
 	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 	"github.com/gorilla/websocket"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // Client Agent 客户端
@@ -210,10 +215,141 @@ func (c *Client) reconnect() {
 	}
 }
 
-// getLocalIP 获取本地 IP（简化版）
+// getLocalIP 获取本地 IP（优先获取节点 IP）
 func (c *Client) getLocalIP() string {
-	// 简化实现，实际应该获取真实的本地 IP
+	// 1. 优先从环境变量获取（Kubernetes 环境）
+	// K8s Pod 可以通过环境变量获取节点 IP 或 Pod IP
+	if nodeIP := os.Getenv("NODE_IP"); nodeIP != "" && nodeIP != "127.0.0.1" {
+		return nodeIP
+	}
+	if hostIP := os.Getenv("HOST_IP"); hostIP != "" && hostIP != "127.0.0.1" {
+		return hostIP
+	}
+	if podIP := os.Getenv("POD_IP"); podIP != "" && podIP != "127.0.0.1" {
+		// 如果使用 hostNetwork，Pod IP 就是节点 IP
+		// 否则，尝试通过 Kubernetes API 查询节点 IP
+		if os.Getenv("HOST_NETWORK") != "true" {
+			if nodeIP := c.getNodeIPFromK8s(); nodeIP != "" {
+				return nodeIP
+			}
+		}
+		return podIP
+	}
+
+	// 2. 尝试通过 Kubernetes API 查询节点 IP（如果在 K8s 环境中）
+	if nodeIP := c.getNodeIPFromK8s(); nodeIP != "" {
+		return nodeIP
+	}
+
+	// 3. 尝试从网络接口获取真实的 IP 地址
+	// 获取所有网络接口
+	interfaces, err := net.Interfaces()
+	if err == nil {
+		for _, iface := range interfaces {
+			// 跳过回环接口和未启用的接口
+			if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+				continue
+			}
+
+			// 获取接口地址
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
+				}
+
+				// 跳过回环地址和 IPv6 地址
+				if ip == nil || ip.IsLoopback() || ip.To4() == nil {
+					continue
+				}
+
+				// 返回第一个有效的 IPv4 地址
+				return ip.String()
+			}
+		}
+	}
+
+	// 4. 如果都获取不到，尝试通过连接外部地址获取本地 IP
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err == nil {
+		defer conn.Close()
+		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		if localAddr.IP != nil && !localAddr.IP.IsLoopback() {
+			return localAddr.IP.String()
+		}
+	}
+
+	// 5. 最后返回回环地址作为兜底
 	return "127.0.0.1"
+}
+
+// getNodeIPFromK8s 通过 Kubernetes API 查询节点 IP
+func (c *Client) getNodeIPFromK8s() string {
+	// 尝试使用 in-cluster 配置
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return ""
+	}
+
+	// 创建 clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return ""
+	}
+
+	// 获取 Pod 所在节点名称
+	nodeName := os.Getenv("NODE_NAME")
+	if nodeName == "" {
+		// 尝试从 Pod spec 获取节点名称
+		podName := os.Getenv("HOSTNAME")
+		if podName == "" {
+			hostname, _ := os.Hostname()
+			podName = hostname
+		}
+		namespace := os.Getenv("POD_NAMESPACE")
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		// 查询 Pod 信息获取节点名称
+		pod, err := clientset.CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+		if err != nil {
+			return ""
+		}
+		nodeName = pod.Spec.NodeName
+	}
+
+	if nodeName == "" {
+		return ""
+	}
+
+	// 查询节点信息获取节点 IP
+	node, err := clientset.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return ""
+	}
+
+	// 获取节点内部 IP
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == "InternalIP" {
+			return addr.Address
+		}
+	}
+
+	// 如果没有 InternalIP，返回第一个地址
+	if len(node.Status.Addresses) > 0 {
+		return node.Status.Addresses[0].Address
+	}
+
+	return ""
 }
 
 // Close 关闭连接

@@ -203,6 +203,21 @@ spec:
         # K8s 集群名称（可选，根据实际情况设置）
         - name: K8S_CLUSTER_NAME
           value: "local"  # 可以设置为实际的集群名称，如 "production-cluster"
+        # 节点名称（用于查询节点 IP）
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        # Pod 命名空间
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        # 节点 IP（通过 Pod IP 获取，因为使用了 hostNetwork，Pod IP 就是节点 IP）
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         resources: {}
         securityContext:
           privileged: true

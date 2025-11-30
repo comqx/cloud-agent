@@ -76,6 +76,10 @@ func (d *Database) GetAgent(agentID string) (*common.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 确保 tags 字段不为 nil
+	if agent.Tags == nil {
+		agent.Tags = []string{}
+	}
 	return &agent, nil
 }
 
@@ -104,9 +108,13 @@ func (d *Database) ListAgents() ([]*common.Agent, error) {
 	}
 
 	// 确保 protocol 字段有默认值（处理 NULL 值）
+	// 确保 tags 字段不为 nil（处理 NULL 值）
 	for i := range agents {
 		if agents[i].Protocol == "" {
 			agents[i].Protocol = "ws"
+		}
+		if agents[i].Tags == nil {
+			agents[i].Tags = []string{}
 		}
 	}
 

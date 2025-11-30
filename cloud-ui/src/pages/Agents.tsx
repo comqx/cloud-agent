@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Table, Tag, Card, Button, message, Modal, Space, Tooltip, Input } from 'antd';
-import { ReloadOutlined, DeleteOutlined, ExclamationCircleOutlined, SafetyOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { ReloadOutlined, DeleteOutlined, ExclamationCircleOutlined, SafetyOutlined, EditOutlined, PlusOutlined, TagsOutlined, ClusterOutlined } from '@ant-design/icons';
 import { agentAPI, Agent } from '../services/api';
 
 export default function Agents() {
@@ -11,12 +11,25 @@ export default function Agents() {
   const [tags, setTags] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [inputVisible, setInputVisible] = useState(false);
+  
+  // 批量操作相关
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchTagModalVisible, setBatchTagModalVisible] = useState(false);
+  const [batchTags, setBatchTags] = useState<string[]>([]);
+  const [batchTagInput, setBatchTagInput] = useState('');
+  const [batchTagInputVisible, setBatchTagInputVisible] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const loadAgents = async () => {
     setLoading(true);
     try {
       const res = await agentAPI.list();
-      setAgents(res.data);
+      // 确保 tags 字段是数组
+      const agentsWithTags = res.data.map(agent => ({
+        ...agent,
+        tags: Array.isArray(agent.tags) ? agent.tags : (agent.tags ? [agent.tags] : [])
+      }));
+      setAgents(agentsWithTags);
     } catch (error: any) {
       message.error('加载 Agent 列表失败: ' + error.message);
     } finally {
@@ -81,69 +94,254 @@ export default function Agents() {
     setInputValue('');
   };
 
+  // 批量添加标签相关
+  const handleBatchAddTags = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要添加标签的 Agent');
+      return;
+    }
+    setBatchTags([]);
+    setBatchTagModalVisible(true);
+  };
+
+  const handleBatchTagAdd = () => {
+    if (batchTagInput && batchTags.indexOf(batchTagInput) === -1) {
+      setBatchTags([...batchTags, batchTagInput]);
+    }
+    setBatchTagInputVisible(false);
+    setBatchTagInput('');
+  };
+
+  const handleBatchTagRemove = (removedTag: string) => {
+    setBatchTags(batchTags.filter(tag => tag !== removedTag));
+  };
+
+  const handleBatchSaveTags = async () => {
+    if (batchTags.length === 0) {
+      message.warning('请至少添加一个标签');
+      return;
+    }
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要添加标签的 Agent');
+      return;
+    }
+
+    setBatchLoading(true);
+    try {
+      // 只选择 Agent 节点（排除集群节点）
+      const selectedAgents = agents.filter(a => 
+        selectedRowKeys.includes(a.id) && !a.id.startsWith('cluster-')
+      );
+      let successCount = 0;
+      let failCount = 0;
+
+      // 批量更新每个 Agent 的标签
+      for (const agent of selectedAgents) {
+        try {
+          const currentTags = agent.tags || [];
+          // 合并标签（去重）
+          const mergedTags = Array.from(new Set([...currentTags, ...batchTags]));
+          await agentAPI.update(agent.id, { tags: mergedTags });
+          successCount++;
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      if (failCount > 0) {
+        message.warning(`批量添加标签完成: ${successCount} 个成功, ${failCount} 个失败`);
+      } else {
+        message.success(`成功为 ${successCount} 个 Agent 添加标签`);
+      }
+
+      setBatchTagModalVisible(false);
+      setBatchTags([]);
+      setSelectedRowKeys([]);
+      loadAgents();
+    } catch (error: any) {
+      message.error('批量添加标签失败: ' + error.message);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const handleBatchTagModalClose = () => {
+    setBatchTagModalVisible(false);
+    setBatchTags([]);
+    setBatchTagInput('');
+    setBatchTagInputVisible(false);
+  };
+
+  // 构建树形表格数据
+  const treeData = useMemo(() => {
+    const grouped: Record<string, Agent[]> = {};
+    const noCluster: Agent[] = [];
+    
+    agents.forEach(agent => {
+      const cluster = agent.env || '未分组';
+      if (cluster === '未分组') {
+        noCluster.push(agent);
+      } else {
+        if (!grouped[cluster]) {
+          grouped[cluster] = [];
+        }
+        grouped[cluster].push(agent);
+      }
+    });
+    
+    if (noCluster.length > 0) {
+      grouped['未分组'] = noCluster;
+    }
+    
+    // 构建树形数据
+    const clusters = Object.keys(grouped).sort();
+    return clusters.map(cluster => {
+      const clusterAgents = grouped[cluster];
+      const onlineCount = clusterAgents.filter(a => a.status === 'online').length;
+      const totalCount = clusterAgents.length;
+      
+      return {
+        key: `cluster-${cluster}`,
+        id: `cluster-${cluster}`,
+        isCluster: true,
+        cluster: cluster,
+        hostname: cluster,
+        ip: '',
+        version: '',
+        tags: [],
+        status: '',
+        last_seen: '',
+        onlineCount,
+        totalCount,
+        children: clusterAgents.map(agent => ({
+          ...agent,
+          key: agent.id,
+          isCluster: false,
+        })),
+      };
+    });
+  }, [agents]);
+
+  // Table 行选择配置
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (selectedKeys: React.Key[]) => {
+      // 过滤掉集群节点，只保留 Agent 节点
+      const agentKeys = selectedKeys.filter(key => 
+        typeof key === 'string' && !key.startsWith('cluster-')
+      );
+      setSelectedRowKeys(agentKeys);
+    },
+    getCheckboxProps: (record: any) => ({
+      disabled: record.isCluster || record.status === 'offline', // 禁用集群行和离线 Agent
+    }),
+    checkStrictly: true, // 父子节点选择状态独立
+  };
+
   useEffect(() => {
     loadAgents();
     const interval = setInterval(loadAgents, 5000); // 每5秒刷新一次
     return () => clearInterval(interval);
   }, []);
 
-  // 获取所有唯一的集群名称
-  const uniqueEnvs = Array.from(new Set(agents.map(a => a.env).filter(Boolean)));
-  const envFilters = uniqueEnvs.map(env => ({ text: env!, value: env! }));
-
   const columns = [
     {
       title: '集群',
-      dataIndex: 'env',
-      key: 'env',
-      filters: envFilters,
-      onFilter: (value: boolean | React.Key, record: Agent) => record.env === value,
-      render: (text: string) => (text ? <Tag color="blue">{text}</Tag> : '-'),
+      dataIndex: 'cluster',
+      key: 'cluster',
+      width: 200,
+      render: (text: string, record: any) => {
+        if (record.isCluster) {
+          return (
+            <Space>
+              <ClusterOutlined />
+              <span style={{ fontWeight: 'bold' }}>{text}</span>
+              <Tag color="blue" style={{ fontSize: '11px' }}>
+                {record.totalCount} 个节点
+              </Tag>
+              {record.onlineCount > 0 && (
+                <Tag color="green" style={{ fontSize: '11px' }}>
+                  {record.onlineCount} 在线
+                </Tag>
+              )}
+            </Space>
+          );
+        }
+        return null;
+      },
     },
     {
       title: '主机名',
       dataIndex: 'hostname',
       key: 'hostname',
-      render: (text: string, record: Agent) => (
-        <Space>
-          {text}
-          {record.protocol === 'wss' && (
-            <Tooltip title="使用 WSS 安全连接">
-              <SafetyOutlined style={{ color: '#52c41a' }} />
-            </Tooltip>
-          )}
-        </Space>
-      ),
+      render: (text: string, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
+        return (
+          <Space>
+            {text}
+            {record.protocol === 'wss' && (
+              <Tooltip title="使用 WSS 安全连接">
+                <SafetyOutlined style={{ color: '#52c41a' }} />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'IP',
       dataIndex: 'ip',
       key: 'ip',
+      render: (text: string, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
+        return text;
+      },
     },
     {
       title: '版本',
       dataIndex: 'version',
       key: 'version',
+      render: (text: string, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
+        return text;
+      },
     },
     {
       title: '标签',
       dataIndex: 'tags',
       key: 'tags',
-      render: (tags: string[]) => (
-        <>
-          {tags && tags.map(tag => (
-            <Tag color="blue" key={tag}>
-              {tag}
-            </Tag>
-          ))}
-        </>
-      ),
+      render: (tags: string[] | null | undefined, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
+        if (!tags || !Array.isArray(tags) || tags.length === 0) {
+          return <span style={{ color: '#999' }}>-</span>;
+        }
+        return (
+          <>
+            {tags.map(tag => (
+              <Tag color="blue" key={tag}>
+                {tag}
+              </Tag>
+            ))}
+          </>
+        );
+      },
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => {
+      render: (status: string, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
         const colorMap: Record<string, string> = {
           online: 'green',
           offline: 'default',
@@ -156,30 +354,41 @@ export default function Agents() {
       title: '最后活跃',
       dataIndex: 'last_seen',
       key: 'last_seen',
-      render: (text: string) => (text ? new Date(text).toLocaleString() : '-'),
+      render: (text: string, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
+        return text ? new Date(text).toLocaleString() : '-';
+      },
     },
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: Agent) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEditTags(record)}
-          >
-            标签
-          </Button>
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record)}
-          >
-            删除
-          </Button>
-        </Space>
-      ),
+      width: 150,
+      render: (_: any, record: any) => {
+        if (record.isCluster) {
+          return null;
+        }
+        return (
+          <Space>
+            <Button
+              type="link"
+              icon={<EditOutlined />}
+              onClick={() => handleEditTags(record)}
+            >
+              标签
+            </Button>
+            <Button
+              type="link"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
+            >
+              删除
+            </Button>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -187,19 +396,34 @@ export default function Agents() {
     <Card
       title="Agent 管理"
       extra={
-        <Button icon={<ReloadOutlined />} onClick={loadAgents} loading={loading}>
-          刷新
-        </Button>
+        <Space>
+          {selectedRowKeys.length > 0 && (
+            <Button
+              type="primary"
+              icon={<TagsOutlined />}
+              onClick={handleBatchAddTags}
+            >
+              批量添加标签 ({selectedRowKeys.length})
+            </Button>
+          )}
+          <Button icon={<ReloadOutlined />} onClick={loadAgents} loading={loading}>
+            刷新
+          </Button>
+        </Space>
       }
     >
       <Table
         columns={columns}
-        dataSource={agents}
-        rowKey="id"
+        dataSource={treeData}
+        rowKey="key"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={false}
+        rowSelection={rowSelection}
+        defaultExpandAllRows
+        indentSize={20}
       />
 
+      {/* 单个 Agent 标签编辑 Modal */}
       <Modal
         title={`编辑标签 - ${currentAgent?.hostname}`}
         open={isModalVisible}
@@ -243,6 +467,77 @@ export default function Agents() {
               <PlusOutlined /> New Tag
             </Tag>
           )}
+        </div>
+      </Modal>
+
+      {/* 批量添加标签 Modal */}
+      <Modal
+        title={`批量添加标签 (已选择 ${selectedRowKeys.length} 个 Agent)`}
+        open={batchTagModalVisible}
+        onOk={handleBatchSaveTags}
+        onCancel={handleBatchTagModalClose}
+        confirmLoading={batchLoading}
+        width={600}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 12, color: '#666' }}>
+            将为以下 Agent 添加标签：
+          </div>
+          <div style={{ marginBottom: 16, maxHeight: '150px', overflowY: 'auto', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
+            {agents
+              .filter(a => selectedRowKeys.includes(a.id))
+              .map(agent => (
+                <Tag key={agent.id} style={{ marginBottom: '4px' }}>
+                  {agent.hostname} {agent.env && `(${agent.env})`}
+                </Tag>
+              ))}
+          </div>
+          <div style={{ marginBottom: 12, fontWeight: 'bold' }}>
+            要添加的标签：
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            {batchTags.map((tag) => {
+              const isLongTag = tag.length > 20;
+              const tagElem = (
+                <Tag
+                  key={tag}
+                  closable
+                  onClose={() => handleBatchTagRemove(tag)}
+                  color="blue"
+                >
+                  {isLongTag ? `${tag.slice(0, 20)}...` : tag}
+                </Tag>
+              );
+              return isLongTag ? (
+                <Tooltip title={tag} key={tag}>
+                  {tagElem}
+                </Tooltip>
+              ) : (
+                tagElem
+              );
+            })}
+            {batchTagInputVisible && (
+              <Input
+                type="text"
+                size="small"
+                style={{ width: 120 }}
+                value={batchTagInput}
+                onChange={e => setBatchTagInput(e.target.value)}
+                onBlur={handleBatchTagAdd}
+                onPressEnter={handleBatchTagAdd}
+                autoFocus
+                placeholder="输入标签名称"
+              />
+            )}
+            {!batchTagInputVisible && (
+              <Tag onClick={() => setBatchTagInputVisible(true)} className="site-tag-plus" style={{ cursor: 'pointer' }}>
+                <PlusOutlined /> 添加标签
+              </Tag>
+            )}
+          </div>
+          <div style={{ color: '#999', fontSize: '12px' }}>
+            提示：标签会合并到每个 Agent 的现有标签中（不会覆盖，自动去重）
+          </div>
         </div>
       </Modal>
     </Card>
