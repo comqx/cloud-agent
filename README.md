@@ -317,6 +317,11 @@ helm install cloud-agent ./deployments/helm/cloud-agent
 ```
 
 ---
+### 界面展示
+![image-20251130114333462](https://picgo-img.oss-cn-beijing.aliyuncs.com/md-img/image-20251130114333462.png)
+![image-20251130114240166](https://picgo-img.oss-cn-beijing.aliyuncs.com/md-img/image-20251130114240166.png)
+
+
 
 ## 📖 使用指南
 
