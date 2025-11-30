@@ -29,6 +29,7 @@ export default function Tasks() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [taskType, setTaskType] = useState<string>('shell');
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [selectedCluster, setSelectedCluster] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     loadAgents();
@@ -45,6 +46,75 @@ export default function Tasks() {
     } catch (error: any) {
       message.error('加载 Agent 列表失败');
     }
+  };
+
+  // 获取所有唯一的集群名称
+  const getClusters = () => {
+    const clusters = Array.from(new Set(agents.map(a => a.env).filter(Boolean))) as string[];
+    return clusters.sort();
+  };
+
+  // 根据选择的集群筛选 agent
+  const getFilteredAgents = () => {
+    if (!selectedCluster) {
+      return agents;
+    }
+    return agents.filter(a => a.env === selectedCluster);
+  };
+
+  // 处理集群选择变化
+  const handleClusterChange = (cluster: string | undefined) => {
+    setSelectedCluster(cluster);
+    // 清空已选择的 agent
+    form.setFieldsValue({ agent_ids: undefined });
+  };
+
+  // 处理全选/取消全选
+  const handleSelectAll = (selected: boolean) => {
+    const filteredAgents = getFilteredAgents();
+    const currentValues = form.getFieldValue('agent_ids') || [];
+    
+    if (selected) {
+      // 全选：添加所有未选中的 agent
+      const allAgentIds = filteredAgents.map(a => a.id);
+      const newValues = Array.from(new Set([...currentValues, ...allAgentIds]));
+      form.setFieldsValue({ agent_ids: newValues });
+    } else {
+      // 取消全选：移除所有当前筛选的 agent
+      const filteredAgentIds = filteredAgents.map(a => a.id);
+      const newValues = currentValues.filter((id: string) => !filteredAgentIds.includes(id));
+      form.setFieldsValue({ agent_ids: newValues });
+    }
+  };
+
+  // 检查是否已全选
+  const isAllSelected = () => {
+    const filteredAgents = getFilteredAgents();
+    if (filteredAgents.length === 0) return false;
+    const currentValues = form.getFieldValue('agent_ids') || [];
+    const filteredAgentIds = filteredAgents.map(a => a.id);
+    return filteredAgentIds.every((id: string) => currentValues.includes(id));
+  };
+
+  // 处理选项选择
+  const handleOptionSelect = (value: string) => {
+    if (value === '__SELECT_ALL__') {
+      handleSelectAll(true);
+    }
+  };
+
+  // 处理选项取消选择
+  const handleOptionDeselect = (value: string) => {
+    if (value === '__SELECT_ALL__') {
+      handleSelectAll(false);
+    }
+  };
+
+  // 处理 Select 值变化，过滤掉全选选项
+  const handleAgentIdsChange = (values: string[]) => {
+    // 过滤掉全选选项
+    const filteredValues = values.filter(v => v !== '__SELECT_ALL__');
+    form.setFieldsValue({ agent_ids: filteredValues });
   };
 
   const loadFiles = async () => {
@@ -68,7 +138,9 @@ export default function Tasks() {
   const handleSubmit = async (values: any) => {
     setLoading(true);
     try {
-      const agentIds = Array.isArray(values.agent_ids) ? values.agent_ids : [values.agent_ids];
+      // 过滤掉全选选项
+      let agentIds = Array.isArray(values.agent_ids) ? values.agent_ids : [values.agent_ids];
+      agentIds = agentIds.filter((id: string) => id !== '__SELECT_ALL__');
 
       // If file task and user uploaded files, upload them first and create tasks
       if (taskType === 'file' && uploadedFiles.length > 0) {
@@ -261,20 +333,95 @@ export default function Tasks() {
     <>
       <Card title="创建任务" style={{ marginBottom: 16 }}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="agent_ids" label="Agent" rules={[{ required: true, message: '请选择至少一个 Agent' }]}>
+          <Form.Item name="cluster" label="集群">
             <Select
-              placeholder="选择 Agent (可多选)"
+              placeholder="选择集群（可选，用于筛选 Agent）"
+              allowClear
+              onChange={handleClusterChange}
+              showSearch
+              optionFilterProp="children"
+            >
+              {getClusters().map((cluster) => (
+                <Option key={cluster} value={cluster}>
+                  {cluster}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item 
+            name="agent_ids" 
+            label="Agent" 
+            rules={[
+              { 
+                required: true, 
+                message: '请选择至少一个 Agent',
+                validator: (_, value) => {
+                  if (!value || value.length === 0) {
+                    return Promise.reject(new Error('请选择至少一个 Agent'));
+                  }
+                  // 如果只有全选选项，也不算有效
+                  const validValues = value.filter((v: string) => v !== '__SELECT_ALL__');
+                  if (validValues.length === 0) {
+                    return Promise.reject(new Error('请选择至少一个 Agent'));
+                  }
+                  return Promise.resolve();
+                }
+              }
+            ]}
+            dependencies={['cluster']}
+          >
+            <Select
+              placeholder={
+                selectedCluster 
+                  ? `选择 ${selectedCluster} 集群下的 Agent (可多选)` 
+                  : getClusters().length > 0 
+                    ? "请先选择集群，或直接选择 Agent (可多选)"
+                    : "选择 Agent (可多选)"
+              }
               mode="multiple"
               showSearch
               optionFilterProp="children"
               allowClear
+              onSelect={handleOptionSelect}
+              onDeselect={handleOptionDeselect}
+              onChange={handleAgentIdsChange}
+              maxTagCount="responsive"
+              filterOption={(input, option) => {
+                // 全选选项始终显示
+                if (option?.value === '__SELECT_ALL__') return true;
+                const agent = getFilteredAgents().find(a => a.id === option?.value);
+                if (!agent) return false;
+                const searchText = input.toLowerCase();
+                return (
+                  agent.hostname.toLowerCase().includes(searchText) ||
+                  (agent.env && agent.env.toLowerCase().includes(searchText)) ||
+                  agent.ip.toLowerCase().includes(searchText)
+                );
+              }}
             >
-              {agents.map((agent) => (
+              {getFilteredAgents().length > 0 && (
+                <Option key="__SELECT_ALL__" value="__SELECT_ALL__">
+                  <strong style={{ color: isAllSelected() ? '#1890ff' : '#000' }}>
+                    {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
+                  </strong>
+                </Option>
+              )}
+              {getFilteredAgents().map((agent) => (
                 <Option key={agent.id} value={agent.id}>
-                  {agent.name} ({agent.id.substring(0, 8)})
+                  {agent.hostname} {agent.env && `(${agent.env})`}
                 </Option>
               ))}
             </Select>
+            {selectedCluster && getFilteredAgents().length === 0 && (
+              <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '4px' }}>
+                该集群下没有可用的 Agent
+              </div>
+            )}
+            {!selectedCluster && getClusters().length > 0 && getFilteredAgents().length > 0 && (
+              <div style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
+                提示：已显示所有 Agent，可选择集群进行筛选
+              </div>
+            )}
           </Form.Item>
           <Form.Item name="type" label="任务类型" rules={[{ required: true }]}>
             <Select onChange={(value) => setTaskType(value)}>
