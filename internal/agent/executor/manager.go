@@ -77,6 +77,9 @@ func NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath strin
 		}
 		m.RegisterExecutor(plugins.NewFileExecutor(nil))
 		m.RegisterExecutor(plugins.NewAPIExecutor(nil))
+		if helmExec, err := plugins.NewHelmExecutor(nil); err == nil {
+			m.RegisterExecutor(helmExec)
+		}
 	}
 
 	return m

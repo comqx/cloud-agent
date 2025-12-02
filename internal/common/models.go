@@ -49,6 +49,7 @@ const (
 	TaskTypeK8s  TaskType = "k8s"
 	TaskTypeAPI  TaskType = "api"
 	TaskTypeFile TaskType = "file"
+	TaskTypeHelm TaskType = "helm"
 )
 
 // TaskStatus 任务状态
