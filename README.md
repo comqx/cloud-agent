@@ -165,7 +165,25 @@ graph TB
   - **K8s Executor**：使用client-go SDK操作Kubernetes集群
   - **API Executor**：执行HTTP/HTTPS请求
   - **File Executor**：文件复制、删除、创建等操作
+  - **Helm Executor**：Helm Chart 部署和管理
   - **数据库插件**：PostgreSQL、Redis、MongoDB、Elasticsearch、ClickHouse、Doris等
+
+**📚 插件详细文档**：[查看所有插件使用指南](./docs/plugin-docs/)
+
+支持的插件列表：
+- [Shell 插件](./docs/plugin-docs/01-Shell插件.md) - 命令执行
+- [MySQL 插件](./docs/plugin-docs/02-MySQL插件.md) - MySQL 数据库操作
+- [Kubernetes 插件](./docs/plugin-docs/03-Kubernetes插件.md) - K8s 集群管理
+- [文件操作插件](./docs/plugin-docs/04-文件操作插件.md) - 文件分发
+- [API 调用插件](./docs/plugin-docs/05-API调用插件.md) - HTTP 请求
+- [Helm 插件](./docs/plugin-docs/06-Helm插件.md) - Helm Chart 部署
+- [PostgreSQL 插件](./docs/plugin-docs/07-PostgreSQL插件.md) - PostgreSQL 数据库
+- [MongoDB 插件](./docs/plugin-docs/08-MongoDB插件.md) - MongoDB 数据库
+- [Redis 插件](./docs/plugin-docs/09-Redis插件.md) - Redis 缓存
+- [Elasticsearch 插件](./docs/plugin-docs/10-Elasticsearch插件.md) - ES 搜索引擎
+- [ClickHouse 插件](./docs/plugin-docs/11-ClickHouse插件.md) - ClickHouse 分析数据库
+- [Doris 插件](./docs/plugin-docs/12-Doris插件.md) - Apache Doris 分析数据库
+
 
 ### 通信流程
 
