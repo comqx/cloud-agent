@@ -9,7 +9,7 @@ import {
   CloseCircleOutlined,
   DownloadOutlined,
 } from '@ant-design/icons';
-import { auditAPI, complianceAPI, type AuditLog, type CompliancePolicy, type ComplianceRule } from '../services/api';
+import { auditAPI, complianceAPI, type AuditLog, type CompliancePolicy, type ComplianceRule } from '../services/mockApi';
 
 const { RangePicker } = DatePicker;
 

@@ -21,6 +21,7 @@ import Workflows from './pages/Workflows';
 import Integration from './pages/Integration';
 import System from './pages/System';
 import Audit from './pages/Audit';
+import Members from './pages/Members';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/environments" element={<Environments />} />
                 <Route path="/organizations" element={<Organizations />} />
+                <Route path="/members" element={<Members />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/products/:id/versions/:versionId" element={<ProductVersionDetail />} />
                 <Route path="/releases" element={<Releases />} />

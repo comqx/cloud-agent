@@ -1,22 +1,25 @@
-import { useEffect, useState } from 'react';
-import { Table, Tag, Card, Button, message, Modal, Form, Input, Select, Tree, Space, Tabs } from 'antd';
-import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, UserOutlined } from '@ant-design/icons';
-import { organizationAPI, type Organization, type OrganizationMember } from '../services/api';
+import { useState, useEffect } from 'react';
+import { Table, Button, Space, Tag, Card, Modal, Form, Input, Select, message } from 'antd';
+import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, TeamOutlined } from '@ant-design/icons';
+import { organizationAPI, type Organization, type OrganizationMember } from '../services/mockApi';
 
-const { TextArea } = Input;
 const { Option } = Select;
 
 export default function Organizations() {
+  const [loading, setLoading] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
-  const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [memberModalVisible, setMemberModalVisible] = useState(false);
+  const [membersModalVisible, setMembersModalVisible] = useState(false);
+  const [memberFormVisible, setMemberFormVisible] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   const [form] = Form.useForm();
   const [memberForm] = Form.useForm();
-  const [activeTab, setActiveTab] = useState('list');
+
+  useEffect(() => {
+    loadOrganizations();
+  }, []);
 
   const loadOrganizations = async () => {
     setLoading(true);
@@ -39,32 +42,22 @@ export default function Organizations() {
     }
   };
 
-  useEffect(() => {
-    loadOrganizations();
-  }, []);
-
-  useEffect(() => {
-    if (selectedOrgId) {
-      loadMembers(selectedOrgId);
-    }
-  }, [selectedOrgId]);
-
   const handleCreate = () => {
-    setEditingOrg(null);
     form.resetFields();
+    setEditingOrg(null);
     setModalVisible(true);
   };
 
   const handleEdit = (org: Organization) => {
-    setEditingOrg(org);
     form.setFieldsValue(org);
+    setEditingOrg(org);
     setModalVisible(true);
   };
 
   const handleDelete = async (id: string) => {
     Modal.confirm({
       title: '确认删除',
-      content: '确定要删除这个组织部门吗？',
+      content: '确定要删除这个组织吗？',
       onOk: async () => {
         try {
           await organizationAPI.delete(id);
@@ -93,23 +86,25 @@ export default function Organizations() {
     }
   };
 
-  const handleAddMember = (orgId: string) => {
+  const handleViewMembers = async (orgId: string) => {
     setSelectedOrgId(orgId);
+    await loadMembers(orgId);
+    setMembersModalVisible(true);
+  };
+
+  const handleAddMember = () => {
     memberForm.resetFields();
-    setMemberModalVisible(true);
+    setMemberFormVisible(true);
   };
 
   const handleMemberSubmit = async (values: any) => {
     try {
-      await organizationAPI.addMember(selectedOrgId, {
-        user_id: values.user_id,
-        role: values.role,
-      });
-      message.success('添加成员成功');
-      setMemberModalVisible(false);
+      await organizationAPI.addMember(selectedOrgId, values);
+      message.success('添加成功');
+      setMemberFormVisible(false);
       loadMembers(selectedOrgId);
     } catch (error: any) {
-      message.error('添加成员失败: ' + error.message);
+      message.error('添加失败: ' + error.message);
     }
   };
 
@@ -151,20 +146,11 @@ export default function Organizations() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          active: 'success',
-          inactive: 'default',
-        };
-        return <Tag color={colorMap[status]}>{status}</Tag>;
-      },
-    },
-    {
-      title: '标签',
-      dataIndex: 'tags',
-      key: 'tags',
-      render: (tags: string[]) =>
-        tags?.map((tag) => <Tag key={tag}>{tag}</Tag>) || '-',
+      render: (status: string) => (
+        <Tag color={status === 'active' ? 'success' : 'default'}>
+          {status === 'active' ? '激活' : '停用'}
+        </Tag>
+      ),
     },
     {
       title: '创建时间',
@@ -177,25 +163,13 @@ export default function Organizations() {
       key: 'action',
       render: (_: any, record: Organization) => (
         <Space>
+          <Button size="small" icon={<TeamOutlined />} onClick={() => handleViewMembers(record.id)}>
+            成员
+          </Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
             编辑
           </Button>
-          <Button
-            size="small"
-            icon={<UserOutlined />}
-            onClick={() => {
-              setSelectedOrgId(record.id);
-              setActiveTab('members');
-            }}
-          >
-            成员
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
-          >
+          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
             删除
           </Button>
         </Space>
@@ -214,13 +188,13 @@ export default function Organizations() {
       dataIndex: 'role',
       key: 'role',
       render: (role: string) => {
-        const roleMap: Record<string, { text: string; color: string }> = {
-          admin: { text: '管理员', color: 'red' },
-          developer: { text: '研发', color: 'blue' },
-          tester: { text: '测试', color: 'green' },
-          operator: { text: '运维', color: 'orange' },
+        const roleMap: Record<string, { color: string; text: string }> = {
+          admin: { color: 'red', text: '管理员' },
+          developer: { color: 'blue', text: '研发' },
+          tester: { color: 'green', text: '测试' },
+          operator: { color: 'orange', text: '运维' },
         };
-        const roleInfo = roleMap[role] || { text: role, color: 'default' };
+        const roleInfo = roleMap[role] || { color: 'default', text: role };
         return <Tag color={roleInfo.color}>{roleInfo.text}</Tag>;
       },
     },
@@ -234,11 +208,7 @@ export default function Organizations() {
       title: '操作',
       key: 'action',
       render: (_: any, record: OrganizationMember) => (
-        <Button
-          size="small"
-          danger
-          onClick={() => handleRemoveMember(record.id)}
-        >
+        <Button size="small" danger onClick={() => handleRemoveMember(record.id)}>
           移除
         </Button>
       ),
@@ -260,102 +230,85 @@ export default function Organizations() {
           </Space>
         }
       >
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'list',
-              label: '组织列表',
-              children: (
-                <Table
-                  columns={orgColumns}
-                  dataSource={organizations}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20 }}
-                />
-              ),
-            },
-            {
-              key: 'members',
-              label: '成员管理',
-              children: selectedOrgId ? (
-                <div>
-                  <div style={{ marginBottom: 16 }}>
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={() => handleAddMember(selectedOrgId)}
-                    >
-                      添加成员
-                    </Button>
-                  </div>
-                  <Table
-                    columns={memberColumns}
-                    dataSource={members}
-                    rowKey="id"
-                    pagination={{ pageSize: 20 }}
-                  />
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-                  请先选择一个组织部门
-                </div>
-              ),
-            },
-          ]}
+        <Table
+          columns={orgColumns}
+          dataSource={organizations}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 20 }}
         />
       </Card>
 
+      {/* 创建/编辑组织模态框 */}
       <Modal
         title={editingOrg ? '编辑组织' : '创建组织'}
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          setEditingOrg(null);
+        }}
         onOk={() => form.submit()}
         width={600}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+          <Form.Item name="name" label="组织名称" rules={[{ required: true, message: '请输入组织名称' }]}>
             <Input placeholder="请输入组织名称" />
           </Form.Item>
           <Form.Item name="description" label="描述">
-            <TextArea rows={3} placeholder="请输入组织描述" />
+            <Input.TextArea rows={3} placeholder="请输入组织描述" />
           </Form.Item>
-          <Form.Item name="parent_id" label="父组织">
-            <Select placeholder="选择父组织（可选）" allowClear>
-              {organizations.map((org) => (
-                <Option key={org.id} value={org.id}>
-                  {org.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="leader_id" label="负责人ID">
-            <Input placeholder="请输入负责人ID" />
+          <Form.Item name="leader_name" label="负责人">
+            <Input placeholder="请输入负责人姓名" />
           </Form.Item>
           <Form.Item name="status" label="状态" initialValue="active">
             <Select>
-              <Option value="active">活跃</Option>
+              <Option value="active">激活</Option>
               <Option value="inactive">停用</Option>
             </Select>
           </Form.Item>
         </Form>
       </Modal>
 
+      {/* 查看成员模态框 */}
+      <Modal
+        title="组织成员"
+        open={membersModalVisible}
+        onCancel={() => setMembersModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setMembersModalVisible(false)}>
+            关闭
+          </Button>,
+        ]}
+        width={800}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddMember}>
+            添加成员
+          </Button>
+        </div>
+        <Table
+          columns={memberColumns}
+          dataSource={members}
+          rowKey="id"
+          pagination={false}
+          size="small"
+        />
+      </Modal>
+
+      {/* 添加成员模态框 */}
       <Modal
         title="添加成员"
-        open={memberModalVisible}
-        onCancel={() => setMemberModalVisible(false)}
+        open={memberFormVisible}
+        onCancel={() => setMemberFormVisible(false)}
         onOk={() => memberForm.submit()}
         width={500}
       >
         <Form form={memberForm} layout="vertical" onFinish={handleMemberSubmit}>
-          <Form.Item name="user_id" label="用户ID" rules={[{ required: true }]}>
+          <Form.Item name="user_id" label="用户ID" rules={[{ required: true, message: '请输入用户ID' }]}>
             <Input placeholder="请输入用户ID" />
           </Form.Item>
-          <Form.Item name="role" label="角色" rules={[{ required: true }]}>
-            <Select placeholder="选择角色">
+          <Form.Item name="role" label="角色" initialValue="developer" rules={[{ required: true, message: '请选择角色' }]}>
+            <Select>
               <Option value="admin">管理员</Option>
               <Option value="developer">研发</Option>
               <Option value="tester">测试</Option>
@@ -367,4 +320,3 @@ export default function Organizations() {
     </div>
   );
 }
-

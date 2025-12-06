@@ -27,7 +27,7 @@ import {
   RollbackOutlined,
   EyeOutlined,
 } from '@ant-design/icons';
-import { deploymentAPI, productAPI, environmentAPI, type DeploymentPlan, type Deployment, type Product, type Environment } from '../services/api';
+import { deploymentPlanAPI, deploymentAPI, productAPI, environmentAPI, type Deployment, type Product, type Environment } from '../services/mockApi';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -51,51 +51,21 @@ export default function DeploymentPlans() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 加载部署计划、部署列表、产品和环境
-      // 这里使用模拟数据，实际应该调用 API
-      const mockPlans: DeploymentPlan[] = [
-        {
-          id: '1',
-          name: '生产环境批量部署',
-          environments: ['env-1', 'env-2'],
-          deployments: ['dep-1', 'dep-2'],
-          status: 'running',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          name: '测试环境部署',
-          environments: ['env-3'],
-          deployments: ['dep-3'],
-          status: 'success',
-          created_at: new Date().toISOString(),
-        },
-      ];
-      setPlans(mockPlans);
+      // 加载部署计划
+      const plansRes = await deploymentPlanAPI.list();
+      setPlans(plansRes.data.data);
 
-      const mockDeployments: Deployment[] = [
-        {
-          id: 'dep-1',
-          product_id: 'prod-1',
-          environment_id: 'env-1',
-          version: '1.0.0',
-          status: 'running',
-          strategy: 'blue-green',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: 'dep-2',
-          product_id: 'prod-2',
-          environment_id: 'env-2',
-          version: '2.0.0',
-          status: 'success',
-          strategy: 'canary',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
-      setDeployments(mockDeployments);
+      // 加载部署列表
+      const deploymentsRes = await deploymentAPI.list();
+      setDeployments(deploymentsRes.data.data);
+
+      // 加载产品列表
+      const productsRes = await productAPI.list();
+      setProducts(productsRes.data.data);
+
+      // 加载环境列表
+      const environmentsRes = await environmentAPI.list();
+      setEnvironments(environmentsRes.data.data);
     } catch (error: any) {
       message.error('加载数据失败: ' + error.message);
     } finally {
@@ -120,7 +90,7 @@ export default function DeploymentPlans() {
       content: '确定要删除这个部署计划吗？',
       onOk: async () => {
         try {
-          // await deploymentPlanAPI.delete(id);
+          await deploymentPlanAPI.delete(id);
           message.success('删除成功');
           loadData();
         } catch (error: any) {
@@ -132,7 +102,11 @@ export default function DeploymentPlans() {
 
   const handleSubmit = async (values: any) => {
     try {
-      // await deploymentPlanAPI.create(values);
+      if (selectedPlan) {
+        await deploymentPlanAPI.update(selectedPlan.id, values);
+      } else {
+        await deploymentPlanAPI.create(values);
+      }
       message.success(selectedPlan ? '更新成功' : '创建成功');
       setModalVisible(false);
       loadData();
@@ -143,7 +117,7 @@ export default function DeploymentPlans() {
 
   const handleExecute = async (id: string) => {
     try {
-      // await deploymentPlanAPI.execute(id);
+      await deploymentPlanAPI.execute(id);
       message.success('执行成功');
       loadData();
     } catch (error: any) {
@@ -153,7 +127,7 @@ export default function DeploymentPlans() {
 
   const handlePause = async (id: string) => {
     try {
-      // await deploymentPlanAPI.pause(id);
+      await deploymentPlanAPI.pause(id);
       message.success('已暂停');
       loadData();
     } catch (error: any) {
@@ -163,7 +137,7 @@ export default function DeploymentPlans() {
 
   const handleResume = async (id: string) => {
     try {
-      // await deploymentPlanAPI.resume(id);
+      await deploymentPlanAPI.resume(id);
       message.success('已恢复');
       loadData();
     } catch (error: any) {
@@ -177,7 +151,7 @@ export default function DeploymentPlans() {
       content: '确定要取消这个部署计划吗？',
       onOk: async () => {
         try {
-          // await deploymentPlanAPI.cancel(id);
+          await deploymentPlanAPI.cancel(id);
           message.success('已取消');
           loadData();
         } catch (error: any) {
@@ -479,10 +453,10 @@ export default function DeploymentPlans() {
                       selectedPlan.status === 'success'
                         ? 'success'
                         : selectedPlan.status === 'failed'
-                        ? 'error'
-                        : selectedPlan.status === 'running'
-                        ? 'processing'
-                        : 'default'
+                          ? 'error'
+                          : selectedPlan.status === 'running'
+                            ? 'processing'
+                            : 'default'
                     }
                     text={selectedPlan.status}
                   />

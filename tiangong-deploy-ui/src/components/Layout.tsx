@@ -55,6 +55,11 @@ export default function Layout({ children }: LayoutProps) {
       label: <Link to="/organizations">组织管理</Link>,
     },
     {
+      key: '/members',
+      icon: <UserOutlined />,
+      label: <Link to="/members">人员管理</Link>,
+    },
+    {
       key: '/products',
       icon: <AppstoreOutlined />,
       label: <Link to="/products">产品管理</Link>,

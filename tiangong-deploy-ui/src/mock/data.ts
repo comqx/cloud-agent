@@ -1049,3 +1049,225 @@ export const mockDeploymentPlans: DeploymentPlan[] = [
     },
 ];
 
+
+// Mock Users (成员管理)
+export const mockUsers: User[] = [
+    {
+        id: 'user-001',
+        username: 'admin',
+        email: 'admin@example.com',
+        name: '张三',
+        role_ids: ['role-001'],
+        status: 'active',
+        last_login: '2023-11-24T14:00:00Z',
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-24T14:00:00Z',
+    },
+    {
+        id: 'user-002',
+        username: 'zhaoLiu',
+        email: 'zhao.liu@example.com',
+        name: '赵六',
+        role_ids: ['role-002'],
+        status: 'active',
+        last_login: '2023-11-24T13:30:00Z',
+        created_at: '2023-01-15T00:00:00Z',
+        updated_at: '2023-11-24T13:30:00Z',
+    },
+    {
+        id: 'user-003',
+        username: 'liSi',
+        email: 'li.si@example.com',
+        name: '李四',
+        role_ids: ['role-002'],
+        status: 'active',
+        last_login: '2023-11-24T12:00:00Z',
+        created_at: '2023-03-01T00:00:00Z',
+        updated_at: '2023-11-24T12:00:00Z',
+    },
+    {
+        id: 'user-004',
+        username: 'wangWu',
+        email: 'wang.wu@example.com',
+        name: '王五',
+        role_ids: ['role-002'],
+        status: 'active',
+        last_login: '2023-11-24T11:00:00Z',
+        created_at: '2023-02-01T00:00:00Z',
+        updated_at: '2023-11-24T11:00:00Z',
+    },
+    {
+        id: 'user-005',
+        username: 'sunQi',
+        email: 'sun.qi@example.com',
+        name: '孙七',
+        role_ids: ['role-003'],
+        status: 'inactive',
+        last_login: '2023-11-20T10:00:00Z',
+        created_at: '2023-04-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+];
+
+// Mock User Groups
+export const mockUserGroups: UserGroup[] = [
+    {
+        id: 'group-001',
+        name: '平台研发组',
+        description: '负责核心平台研发',
+        user_ids: ['user-001', 'user-002', 'user-003'],
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+    {
+        id: 'group-002',
+        name: '运维团队',
+        description: '负责系统运维和监控',
+        user_ids: ['user-004'],
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+    {
+        id: 'group-003',
+        name: '测试团队',
+        description: '负责质量保证和测试',
+        user_ids: ['user-005'],
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+];
+
+// Mock Roles
+export const mockRoles: Role[] = [
+    {
+        id: 'role-001',
+        name: '系统管理员',
+        description: '拥有所有权限',
+        permissions: ['*'],
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+    {
+        id: 'role-002',
+        name: '研发人员',
+        description: '可以创建和管理产品、发布、部署',
+        permissions: [
+            'product:read',
+            'product:write',
+            'release:read',
+            'release:write',
+            'deployment:read',
+            'deployment:write',
+        ],
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+    {
+        id: 'role-003',
+        name: '只读用户',
+        description: '只能查看信息',
+        permissions: [
+            'product:read',
+            'release:read',
+            'deployment:read',
+            'environment:read',
+        ],
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+];
+
+// Mock Alerts
+export const mockAlerts: Alert[] = [
+    {
+        id: 'alert-001',
+        title: '生产环境 CPU 使用率过高',
+        message: 'env-prod-us CPU 使用率达到 85%',
+        level: 'warning',
+        status: 'active',
+        source: 'monitoring',
+        created_at: '2023-11-24T14:00:00Z',
+        updated_at: '2023-11-24T14:00:00Z',
+    },
+    {
+        id: 'alert-002',
+        title: '部署失败',
+        message: 'dep-002 部署到 env-prod-eu 失败',
+        level: 'critical',
+        status: 'active',
+        source: 'deployment',
+        created_at: '2023-11-24T13:00:00Z',
+        updated_at: '2023-11-24T13:00:00Z',
+    },
+    {
+        id: 'alert-003',
+        title: 'Agent 离线',
+        message: 'agent-002 已离线超过 1 小时',
+        level: 'warning',
+        status: 'acknowledged',
+        source: 'agent',
+        created_at: '2023-11-24T12:00:00Z',
+        updated_at: '2023-11-24T13:30:00Z',
+    },
+];
+
+// Mock Alert Rules
+export const mockAlertRules: AlertRule[] = [
+    {
+        id: 'rule-001',
+        name: 'CPU 使用率告警',
+        description: 'CPU 使用率超过 80% 时告警',
+        condition: 'cpu_usage \u003e 80',
+        level: 'warning',
+        enabled: true,
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+    {
+        id: 'rule-002',
+        name: '部署失败告警',
+        description: '部署失败时发送告警',
+        condition: 'deployment_status == "failed"',
+        level: 'critical',
+        enabled: true,
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+];
+
+// Mock Configurations
+export const mockConfigurations: Configuration[] = [
+    {
+        id: 'config-001',
+        name: 'Backend Config',
+        environment_id: 'env-prod-us',
+        product_id: 'prod-backend',
+        content: {
+            database: {
+                host: 'db.prod.example.com',
+                port: 5432,
+                name: 'tiangong_prod',
+            },
+            redis: {
+                host: 'redis.prod.example.com',
+                port: 6379,
+            },
+        },
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+    {
+        id: 'config-002',
+        name: 'Frontend Config',
+        environment_id: 'env-prod-us',
+        product_id: 'prod-frontend',
+        content: {
+            api_url: 'https://api.prod.example.com',
+            cdn_url: 'https://cdn.prod.example.com',
+        },
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-11-20T10:00:00Z',
+    },
+];
+
+
