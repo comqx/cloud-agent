@@ -1,0 +1,534 @@
+{
+	"info": {
+		"name": "Cloud Agent API",
+		"description": "Tiangong Deploy Cloud Agent API 测试集合",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "cloud-agent"
+	},
+	"item": [
+		{
+			"name": "Agents",
+			"item": [
+				{
+					"name": "列出所有 Agent",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/agents",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "agents"]
+						},
+						"description": "获取所有已注册的 Agent 列表"
+					},
+					"response": []
+				},
+				{
+					"name": "获取 Agent 信息",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/agents/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "agents", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "agent-123",
+									"description": "Agent ID"
+								}
+							]
+						},
+						"description": "根据 ID 获取指定 Agent 的详细信息"
+					},
+					"response": []
+				},
+				{
+					"name": "获取 Agent 状态",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/agents/:id/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "agents", ":id", "status"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "agent-123",
+									"description": "Agent ID"
+								}
+							]
+						},
+						"description": "获取指定 Agent 的当前状态（online/offline）"
+					},
+					"response": []
+				},
+				{
+					"name": "更新 Agent",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tags\": [\"production\", \"web\"],\n  \"description\": \"生产环境 Web 服务器\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/agents/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "agents", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "agent-123",
+									"description": "Agent ID"
+								}
+							]
+						},
+						"description": "更新 Agent 的标签、描述等信息"
+					},
+					"response": []
+				},
+				{
+					"name": "删除 Agent",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/agents/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "agents", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "agent-123",
+									"description": "Agent ID"
+								}
+							]
+						},
+						"description": "删除指定的 Agent"
+					},
+					"response": []
+				}
+			],
+			"description": "Agent 管理相关 API"
+		},
+		{
+			"name": "Tasks",
+			"item": [
+				{
+					"name": "创建任务 - Shell",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agent_id\": \"agent-123\",\n  \"type\": \"shell\",\n  \"command\": \"ls -la /tmp\",\n  \"params\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks"]
+						},
+						"description": "创建 Shell 命令执行任务"
+					},
+					"response": []
+				},
+				{
+					"name": "创建任务 - API 请求",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agent_id\": \"agent-123\",\n  \"type\": \"api\",\n  \"command\": \"GET\",\n  \"params\": {\n    \"url\": \"https://api.example.com/users\",\n    \"headers\": {\n      \"Authorization\": \"Bearer token123\"\n    }\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks"]
+						},
+						"description": "创建 HTTP API 请求任务"
+					},
+					"response": []
+				},
+				{
+					"name": "创建任务 - Kubernetes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agent_id\": \"agent-123\",\n  \"type\": \"k8s\",\n  \"command\": \"apply\",\n  \"params\": {\n    \"yaml\": \"apiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: nginx-pod\\nspec:\\n  containers:\\n  - name: nginx\\n    image: nginx:latest\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks"]
+						},
+						"description": "创建 Kubernetes 资源操作任务"
+					},
+					"response": []
+				},
+				{
+					"name": "创建任务 - MySQL",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agent_id\": \"agent-123\",\n  \"type\": \"mysql\",\n  \"command\": \"SELECT * FROM users LIMIT 10\",\n  \"params\": {\n    \"target\": {\n      \"host\": \"mysql-server.example.com\",\n      \"port\": 3306,\n      \"user\": \"admin\",\n      \"password\": \"password\",\n      \"db\": \"test_db\"\n    },\n    \"exec_options\": {\n      \"backup\": true,\n      \"timeout_ms\": 600000\n    }\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks"]
+						},
+						"description": "创建 MySQL 数据库执行任务"
+					},
+					"response": []
+				},
+				{
+					"name": "创建任务 - PostgreSQL",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agent_id\": \"agent-123\",\n  \"type\": \"postgres\",\n  \"command\": \"SELECT * FROM users LIMIT 10\",\n  \"params\": {\n    \"target\": {\n      \"host\": \"postgres-server.example.com\",\n      \"port\": 5432,\n      \"user\": \"postgres\",\n      \"password\": \"password\",\n      \"db\": \"test_db\"\n    }\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks"]
+						},
+						"description": "创建 PostgreSQL 数据库执行任务"
+					},
+					"response": []
+				},
+				{
+					"name": "列出任务",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks?agent_id=&limit=50&offset=0",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks"],
+							"query": [
+								{
+									"key": "agent_id",
+									"value": "",
+									"description": "可选：按 Agent ID 过滤",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "50",
+									"description": "每页数量，默认 50"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "偏移量，默认 0"
+								}
+							]
+						},
+						"description": "获取任务列表，支持分页和按 Agent ID 过滤"
+					},
+					"response": []
+				},
+				{
+					"name": "获取任务信息",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "task-abc123",
+									"description": "任务 ID"
+								}
+							]
+						},
+						"description": "根据 ID 获取指定任务的详细信息"
+					},
+					"response": []
+				},
+				{
+					"name": "获取任务日志",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks/:id/logs?limit=1000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks", ":id", "logs"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "1000",
+									"description": "返回的日志条数，默认 1000"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "task-abc123",
+									"description": "任务 ID"
+								}
+							]
+						},
+						"description": "获取指定任务的执行日志"
+					},
+					"response": []
+				},
+				{
+					"name": "取消任务",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/tasks/:id/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "tasks", ":id", "cancel"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "task-abc123",
+									"description": "任务 ID"
+								}
+							]
+						},
+						"description": "取消正在执行的任务"
+					},
+					"response": []
+				}
+			],
+			"description": "任务管理相关 API"
+		},
+		{
+			"name": "Files",
+			"item": [
+				{
+					"name": "上传文件",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "要上传的文件"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/files",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "files"]
+						},
+						"description": "上传文件到服务器，支持任意格式的文件"
+					},
+					"response": []
+				},
+				{
+					"name": "列出文件",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/files?limit=50&offset=0",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "files"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50",
+									"description": "每页数量，默认 50"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "偏移量，默认 0"
+								}
+							]
+						},
+						"description": "获取已上传的文件列表，支持分页"
+					},
+					"response": []
+				},
+				{
+					"name": "获取文件信息",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "files", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "file-abc123",
+									"description": "文件 ID"
+								}
+							]
+						},
+						"description": "根据 ID 获取指定文件的详细信息"
+					},
+					"response": []
+				},
+				{
+					"name": "下载文件",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/:id/download",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "files", ":id", "download"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "file-abc123",
+									"description": "文件 ID"
+								}
+							]
+						},
+						"description": "下载指定的文件"
+					},
+					"response": []
+				},
+				{
+					"name": "分发文件到 Agent",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"agent_ids\": [\"agent-123\", \"agent-456\"],\n  \"path\": \"/tmp/uploaded_file.zip\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/files/:id/distribute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "files", ":id", "distribute"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "file-abc123",
+									"description": "文件 ID"
+								}
+							]
+						},
+						"description": "将文件分发到指定的 Agent 节点"
+					},
+					"response": []
+				}
+			],
+			"description": "文件管理相关 API"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "API 基础 URL，可根据环境修改（如：https://your-server.com:8443）"
+		}
+	]
+}
+
