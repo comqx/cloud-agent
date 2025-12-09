@@ -104,6 +104,8 @@ func (s *Server) createTask(c *gin.Context) {
 		Command string                 `json:"command"`
 		Params  map[string]interface{} `json:"params"`
 		FileID  string                 `json:"file_id"`
+		Sync    *bool                  `json:"sync"`    // 是否同步等待，默认 false（异步）
+		Timeout *int                   `json:"timeout"` // 同步模式超时时间（秒），默认 60
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,7 +113,25 @@ func (s *Server) createTask(c *gin.Context) {
 		return
 	}
 
-	task, err := s.taskMgr.CreateTask(req.AgentID, req.Type, req.Command, req.Params, req.FileID)
+	// 处理 sync 参数，默认为 false（异步）
+	sync := false
+	if req.Sync != nil {
+		sync = *req.Sync
+	}
+
+	// 处理 timeout 参数，默认 60 秒，最大 300 秒
+	timeout := 60
+	if req.Timeout != nil {
+		timeout = *req.Timeout
+		if timeout < 1 {
+			timeout = 60
+		}
+		if timeout > 300 {
+			timeout = 300
+		}
+	}
+
+	task, err := s.taskMgr.CreateTask(req.AgentID, req.Type, req.Command, req.Params, req.FileID, sync, timeout)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

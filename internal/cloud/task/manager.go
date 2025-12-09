@@ -25,21 +25,26 @@ type Manager struct {
 	agentMgr *agent.Manager
 	// 日志订阅：taskID -> []*common.WSConnection
 	logSubscribers map[string][]*common.WSConnection
-	mu             sync.RWMutex
+	// 同步等待：taskID -> chan *common.Task
+	waitChannels map[string]chan *common.Task
+	mu           sync.RWMutex
 }
 
 // NewManager 创建任务管理器
 func NewManager(db *storage.Database, agentMgr *agent.Manager) *Manager {
 	return &Manager{
-		db:             db,
-		agentMgr:       agentMgr,
+		db:            db,
+		agentMgr:      agentMgr,
 		logSubscribers: make(map[string][]*common.WSConnection),
+		waitChannels:  make(map[string]chan *common.Task),
 	}
 }
 
 // CreateTask 创建任务
 // 如果提供了 fileID，会自动将文件路径信息添加到 params 中
-func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command string, params map[string]interface{}, fileID string) (*common.Task, error) {
+// sync: 是否同步等待任务完成，默认 false（异步）
+// timeout: 同步模式超时时间（秒），默认 60
+func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command string, params map[string]interface{}, fileID string, sync bool, timeout int) (*common.Task, error) {
 	// Check if Agent is online
 	_, exists := m.agentMgr.GetConnection(agentID)
 	if !exists {
@@ -83,6 +88,15 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 		return nil, err
 	}
 
+	// 如果是同步模式，创建等待 channel
+	var waitChan chan *common.Task
+	if sync {
+		waitChan = make(chan *common.Task, 1)
+		m.mu.Lock()
+		m.waitChannels[taskID] = waitChan
+		m.mu.Unlock()
+	}
+
 	// 发送任务到 Agent
 	taskData := common.TaskCreateData{
 		TaskID:  taskID,
@@ -96,6 +110,12 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 
 	msg := common.NewMessage(common.MessageTypeTaskCreate, taskData)
 	if err := m.agentMgr.SendMessage(agentID, msg); err != nil {
+		// 如果发送失败，清理等待 channel
+		if sync {
+			m.mu.Lock()
+			delete(m.waitChannels, taskID)
+			m.mu.Unlock()
+		}
 		// 如果发送失败，更新任务状态
 		m.db.UpdateTaskStatus(taskID, common.TaskStatusFailed)
 		return nil, fmt.Errorf("failed to send task to agent: %w", err)
@@ -104,7 +124,36 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 	// 更新任务状态为运行中
 	m.db.UpdateTaskStatus(taskID, common.TaskStatusRunning)
 
-	return task, nil
+	// 如果是异步模式，立即返回
+	if !sync {
+		return task, nil
+	}
+
+	// 同步模式：等待任务完成或超时
+	select {
+	case completedTask := <-waitChan:
+		// 清理等待 channel
+		m.mu.Lock()
+		delete(m.waitChannels, taskID)
+		m.mu.Unlock()
+		// 从数据库获取最新状态
+		latestTask, err := m.db.GetTask(taskID)
+		if err != nil {
+			return completedTask, nil
+		}
+		return latestTask, nil
+	case <-time.After(time.Duration(timeout) * time.Second):
+		// 超时，清理等待 channel
+		m.mu.Lock()
+		delete(m.waitChannels, taskID)
+		m.mu.Unlock()
+		// 返回当前任务状态
+		currentTask, err := m.db.GetTask(taskID)
+		if err != nil {
+			return task, nil
+		}
+		return currentTask, fmt.Errorf("task execution timeout after %d seconds", timeout)
+	}
 }
 
 // CompleteTask 完成任务
@@ -118,7 +167,24 @@ func (m *Manager) CompleteTask(data *common.TaskCompleteData) error {
 	task.Result = data.Result
 	task.Error = data.Error
 
-	return m.db.UpdateTask(task)
+	if err := m.db.UpdateTask(task); err != nil {
+		return err
+	}
+
+	// 通知等待的 goroutine（同步模式）
+	m.mu.RLock()
+	waitChan, exists := m.waitChannels[data.TaskID]
+	m.mu.RUnlock()
+
+	if exists {
+		// 非阻塞发送，避免阻塞
+		select {
+		case waitChan <- task:
+		default:
+		}
+	}
+
+	return nil
 }
 
 // CancelTask 取消任务
@@ -342,7 +408,8 @@ func (m *Manager) DistributeFile(fileID string, agentIDs []string, targetPath st
 			"target_path": targetPath,
 		}
 
-		_, err := m.CreateTask(agentID, common.TaskTypeFile, "", params, fileID)
+		// 文件分发使用异步模式
+		_, err := m.CreateTask(agentID, common.TaskTypeFile, "", params, fileID, false, 60)
 		if err != nil {
 			// 记录错误但继续处理其他 Agent
 			continue

@@ -17,8 +17,12 @@ allowed_commands:
     description: "系统信息查询"
   
   # ========== 文件操作（只读） ==========
-  - pattern: "^ls\\s+(-[a-zA-Z]+\\s+)?(/[^;|&]*)?$"
-    description: "列出文件（限制路径）"
+  - pattern: "^ls\\s+(-[a-zA-Z]+\\s+)?(/[^;|&]*|\\.[^;|&]*|[^/;|&]+)?$"
+    description: "列出文件（支持绝对路径、相对路径和当前目录）"
+  
+  # 支持 ls 无参数（列出当前目录）
+  - pattern: "^ls\\s*$"
+    description: "列出当前目录"
   
   - pattern: "^cat\\s+/[^;|&]*$"
     description: "读取文件内容"

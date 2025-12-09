@@ -72,6 +72,8 @@ export const taskAPI = {
     command: string;
     params?: Record<string, any>;
     file_id?: string;
+    sync?: boolean;
+    timeout?: number;
   }) => api.post<Task>('/tasks', data),
   list: (params?: { agent_id?: string; limit?: number; offset?: number }) =>
     api.get<Task[]>('/tasks', { params }),

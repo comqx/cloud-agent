@@ -11,6 +11,7 @@ import {
   message,
   Space,
   Upload,
+  Switch,
 } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { taskAPI, agentAPI, fileAPI, Task, Agent, File as FileType } from '../services/api';
@@ -58,9 +59,10 @@ export default function Tasks() {
   };
 
   // 根据选择的集群筛选 agent
+  // 如果没有选择集群，返回空数组（必须先选择集群才能选择 Agent）
   const getFilteredAgents = () => {
     if (!selectedCluster) {
-      return agents;
+      return [];
     }
     return agents.filter(a => a.env === selectedCluster);
   };
@@ -175,6 +177,8 @@ export default function Tasks() {
                 command: values.command || '',
                 params: values.params ? JSON.parse(values.params) : undefined,
                 file_id: fileId,
+                sync: values.sync || false,
+                timeout: values.timeout || 60,
               })
             );
 
@@ -238,6 +242,8 @@ export default function Tasks() {
             type: values.type,
             command: values.command || '',
             params: params,
+            sync: values.sync || false,
+            timeout: values.timeout || 60,
           })
         );
 
@@ -260,6 +266,8 @@ export default function Tasks() {
             command: values.command || '',
             params: Object.keys(params).length > 0 ? params : undefined,
             file_id: fileId,
+            sync: values.sync || false,
+            timeout: values.timeout || 60,
           })
         );
 
@@ -451,9 +459,10 @@ export default function Tasks() {
                 selectedCluster
                   ? `选择 ${selectedCluster} 集群下的 Agent (可多选)`
                   : getClusters().length > 0
-                    ? "请先选择集群，或直接选择 Agent (可多选)"
-                    : "选择 Agent (可多选)"
+                    ? "请先选择集群"
+                    : "暂无可用集群"
               }
+              disabled={!selectedCluster && getClusters().length > 0}
               mode="multiple"
               showSearch
               optionFilterProp="children"
@@ -462,6 +471,7 @@ export default function Tasks() {
               onDeselect={handleOptionDeselect}
               onChange={handleAgentIdsChange}
               maxTagCount="responsive"
+              dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
               tagRender={(props) => {
                 // 不显示全选选项的标签
                 if (props.value === '__SELECT_ALL__') {
@@ -505,28 +515,33 @@ export default function Tasks() {
                 <Option
                   key="__SELECT_ALL__"
                   value="__SELECT_ALL__"
-                  style={{
-                    fontWeight: 'bold',
-                    backgroundColor: isAllSelected() ? '#e6f7ff' : 'transparent'
-                  }}
                 >
-                  {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
+                  <span style={{ fontWeight: 'bold' }}>
+                    {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
+                  </span>
                 </Option>
               )}
               {getFilteredAgents().map((agent) => (
                 <Option key={agent.id} value={agent.id}>
-                  {agent.hostname} {agent.env && `(${agent.env})`}
+                  <span>{agent.hostname}</span>
+                  {agent.env && <span style={{ color: '#999', marginLeft: '8px' }}>({agent.env})</span>}
+                  {agent.ip && <span style={{ color: '#999', marginLeft: '8px', fontSize: '12px' }}>{agent.ip}</span>}
                 </Option>
               ))}
             </Select>
+            {!selectedCluster && getClusters().length > 0 && (
+              <div style={{ color: '#faad14', fontSize: '12px', marginTop: '4px' }}>
+                请先选择集群，然后选择该集群下的 Agent
+              </div>
+            )}
             {selectedCluster && getFilteredAgents().length === 0 && (
               <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '4px' }}>
                 该集群下没有可用的 Agent
               </div>
             )}
-            {!selectedCluster && getClusters().length > 0 && getFilteredAgents().length > 0 && (
-              <div style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
-                提示：已显示所有 Agent，可选择集群进行筛选
+            {selectedCluster && getFilteredAgents().length > 0 && (
+              <div style={{ color: '#52c41a', fontSize: '12px', marginTop: '4px' }}>
+                找到 {getFilteredAgents().length} 个可用 Agent
               </div>
             )}
           </Form.Item>
@@ -557,57 +572,69 @@ export default function Tasks() {
               </Select>
             </Form.Item>
           )}
-          <Form.Item
-            name="command"
-            label={
-              taskType === 'api' ? 'HTTP 方法'
-                : taskType === 'k8s' ? 'YAML/JSON 内容'
-                  : taskType === 'helm' ? 'Release 名称'
-                    : taskType === 'elasticsearch' ? 'Elasticsearch DSL (JSON)'
-                      : taskType === 'mongo' ? 'MongoDB 操作 (JSON)'
-                        : '命令/内容'
-            }
-            rules={[{ required: taskType !== 'file' && !(taskType === 'helm' && helmOperation === 'list'), message: '请输入命令或内容' }]}
-            help={
-              taskType === 'api'
-                ? '例如: GET, POST, PUT, DELETE 等'
-                : taskType === 'k8s'
-                  ? '输入 Kubernetes 资源的 YAML 或 JSON 配置。支持多资源（使用 --- 分隔）'
-                  : taskType === 'helm'
-                    ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : '输入 Helm Release 名称，例如: my-nginx')
-                    : taskType === 'elasticsearch'
-                      ? '输入 Elasticsearch 操作 JSON，例如: {"operation": "bulk", "index": "test", "actions": [...]}'
-                      : taskType === 'mongo'
-                        ? '输入 MongoDB 操作 JSON，例如: {"operation": "insert", "collection": "users", "documents": [...]}'
-                        : undefined
-            }
-          >
-            <TextArea
-              rows={
-                taskType === 'api' ? 1
-                  : taskType === 'k8s' ? 10
-                    : taskType === 'helm' ? 1
-                      : taskType === 'elasticsearch' || taskType === 'mongo' ? 8
-                        : 4
+          {/* Command 字段 - 根据任务类型显示不同的标签和帮助 */}
+          {taskType !== 'file' && (
+            <Form.Item
+              name="command"
+              label={
+                taskType === 'api' ? 'HTTP 方法'
+                  : taskType === 'k8s' ? 'YAML/JSON 内容'
+                    : taskType === 'helm' ? 'Release 名称'
+                      : taskType === 'elasticsearch' ? 'Elasticsearch DSL (JSON)'
+                        : taskType === 'mongo' ? 'MongoDB 操作 (JSON)'
+                          : taskType === 'shell' ? 'Shell 命令'
+                            : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' ? 'SQL 语句'
+                              : '命令/内容'
               }
-              placeholder={
+              rules={[{ required: !(taskType === 'helm' && helmOperation === 'list'), message: '请输入命令或内容' }]}
+              help={
                 taskType === 'api'
-                  ? 'GET'
+                  ? '例如: GET, POST, PUT, DELETE 等'
                   : taskType === 'k8s'
-                    ? 'YAML 格式:\napiVersion: v1\nkind: Pod\nmetadata:\n  name: my-pod\n  namespace: default\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.21\n\n或 JSON 格式:\n{"apiVersion":"v1","kind":"Pod","metadata":{"name":"my-pod"},"spec":{...}}'
+                    ? '输入 Kubernetes 资源的 YAML 或 JSON 配置。支持多资源（使用 --- 分隔）'
                     : taskType === 'helm'
-                      ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : 'my-nginx')
+                      ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : '输入 Helm Release 名称，例如: my-nginx')
                       : taskType === 'elasticsearch'
-                        ? '{"operation": "bulk", "index": "test_index", "actions": [{"index": {"_source": {"field": "value"}}}]}'
+                        ? '输入 Elasticsearch 操作 JSON，例如: {"operation": "bulk", "index": "test", "actions": [...]}'
                         : taskType === 'mongo'
-                          ? '{"operation": "insert", "collection": "users", "documents": [{"name": "test"}]}'
+                          ? '输入 MongoDB 操作 JSON，例如: {"operation": "insert", "collection": "users", "documents": [...]}'
                           : taskType === 'shell'
-                            ? '输入命令或内容'
-                            : '输入 SQL 或命令'
+                            ? '输入要执行的 Shell 命令'
+                            : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
+                              ? '输入 SQL 语句（支持多语句，用分号分隔）。也可以选择下方的 SQL 文件'
+                              : undefined
               }
-              disabled={taskType === 'helm' && helmOperation === 'list'}
-            />
-          </Form.Item>
+            >
+              <TextArea
+                rows={
+                  taskType === 'api' ? 1
+                    : taskType === 'k8s' ? 10
+                      : taskType === 'helm' ? 1
+                        : taskType === 'elasticsearch' || taskType === 'mongo' ? 8
+                          : taskType === 'shell' ? 4
+                            : 6
+                }
+                placeholder={
+                  taskType === 'api'
+                    ? 'GET'
+                    : taskType === 'k8s'
+                      ? 'YAML 格式:\napiVersion: v1\nkind: Pod\nmetadata:\n  name: my-pod\n  namespace: default\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.21\n\n或 JSON 格式:\n{"apiVersion":"v1","kind":"Pod","metadata":{"name":"my-pod"},"spec":{...}}'
+                      : taskType === 'helm'
+                        ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : 'my-nginx')
+                        : taskType === 'elasticsearch'
+                          ? '{"operation": "bulk", "index": "test_index", "actions": [{"index": {"_source": {"field": "value"}}}]}'
+                          : taskType === 'mongo'
+                            ? '{"operation": "insert", "collection": "users", "documents": [{"name": "test"}]}'
+                            : taskType === 'shell'
+                              ? '例如: ls -la /tmp'
+                              : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
+                                ? '例如: SELECT * FROM users; INSERT INTO users (name) VALUES (\'test\');'
+                                : '输入命令或内容'
+                }
+                disabled={taskType === 'helm' && helmOperation === 'list'}
+              />
+            </Form.Item>
+          )}
           {taskType === 'helm' && (helmOperation === 'install' || helmOperation === 'upgrade') && (
             <>
               <Form.Item label="Chart 文件 (.tgz)">
@@ -648,48 +675,54 @@ export default function Tasks() {
               </Form.Item>
             </>
           )}
-          <Form.Item
-            name="params"
-            label="参数 (JSON)"
-            help={
-              taskType === 'api'
-                ? '示例: {"url": "https://api.example.com/users", "headers": {"Authorization": "Bearer token"}, "body": {"name": "test"}}'
-                : taskType === 'k8s'
-                  ? '操作参数：{"operation": "create|update|delete|patch|apply", "namespace": "default", "patch_type": "strategic|merge|json"}。operation 默认为 apply'
-                  : taskType === 'helm'
-                    ? 'Helm 参数：{"namespace": "default", "repository": {"url": "https://charts.bitnami.com/bitnami", "name": "bitnami"}, "chart": "bitnami/nginx", "version": "1.0.0", "values": {"key": "value"}, "flags": {"create_namespace": true, "wait": true, "timeout": "5m"}}'
-                    : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
-                      ? '数据库参数：{"target": {"host": "...", "port": 3306, "user": "...", "secret_ref": "...", "db": "..."}, "connection": "default", "database": "test_db", "exec_options": {"trans_batch_size": 200, "backup": true, "timeout_ms": 600000}}'
-                      : taskType === 'mongo' || taskType === 'elasticsearch'
-                        ? '连接参数：{"connection": "default", "database": "test_db", "exec_options": {"timeout_ms": 600000}}'
-                        : undefined
-            }
-          >
-            <TextArea
-              rows={
-                taskType === 'api' ? 6
-                  : taskType === 'k8s' ? 3
-                    : taskType === 'helm' ? 8
-                      : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' || taskType === 'mongo' || taskType === 'elasticsearch' ? 6
-                        : 2
-              }
-              placeholder={
+          {/* Params 字段 - 只在需要参数的任务类型显示 */}
+          {(taskType === 'api' || taskType === 'k8s' || taskType === 'helm' || 
+            taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || 
+            taskType === 'doris' || taskType === 'mongo' || taskType === 'elasticsearch') && (
+            <Form.Item
+              name="params"
+              label="参数 (JSON)"
+              help={
                 taskType === 'api'
-                  ? '{\n  "url": "https://api.example.com/endpoint",\n  "headers": {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer your-token"\n  },\n  "body": {\n    "key": "value"\n  }\n}'
+                  ? '示例: {"url": "https://api.example.com/users", "headers": {"Authorization": "Bearer token"}, "body": {"name": "test"}}'
                   : taskType === 'k8s'
-                    ? '{\n  "operation": "apply",\n  "namespace": "default"\n}'
+                    ? '操作参数：{"operation": "create|update|delete|patch|apply", "namespace": "default", "patch_type": "strategic|merge|json"}。operation 默认为 apply'
                     : taskType === 'helm'
-                      ? '{\n  "operation": "' + helmOperation + '",\n  "namespace": "default",\n  "repository": {\n    "url": "https://charts.bitnami.com/bitnami",\n    "name": "bitnami"\n  },\n  "chart": "bitnami/nginx",\n  "version": "1.0.0",\n  "values": {},\n  "flags": {\n    "create_namespace": true,\n    "wait": true,\n    "timeout": "5m"\n  }\n}'
+                      ? 'Helm 参数：{"namespace": "default", "repository": {"url": "https://charts.bitnami.com/bitnami", "name": "bitnami"}, "chart": "bitnami/nginx", "version": "1.0.0", "values": {"key": "value"}, "flags": {"create_namespace": true, "wait": true, "timeout": "5m"}}'
                       : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
-                        ? '{\n  "connection": "default",\n  "database": "test_db",\n  "exec_options": {\n    "trans_batch_size": 200,\n    "backup": true,\n    "timeout_ms": 600000\n  },\n  "metadata": {\n    "env": "prod",\n    "creator": "user"\n  }\n}'
+                        ? '数据库参数：{"target": {"host": "...", "port": 3306, "user": "...", "password": "...", "db": "..."}, "connection": "default", "database": "test_db", "exec_options": {"trans_batch_size": 200, "backup": true, "timeout_ms": 600000}}'
                         : taskType === 'mongo' || taskType === 'elasticsearch'
-                          ? '{\n  "connection": "default",\n  "database": "test_db",\n  "exec_options": {\n    "timeout_ms": 600000\n  }\n}'
-                          : '{"key": "value"}'
+                          ? '连接参数：{"target": {"host": "...", "port": 27017, "user": "...", "password": "...", "db": "..."}, "connection": "default", "database": "test_db", "exec_options": {"timeout_ms": 600000}}'
+                          : undefined
               }
-            />
-          </Form.Item>
+            >
+              <TextArea
+                rows={
+                  taskType === 'api' ? 6
+                    : taskType === 'k8s' ? 3
+                      : taskType === 'helm' ? 8
+                        : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' || taskType === 'mongo' || taskType === 'elasticsearch' ? 6
+                          : 2
+                }
+                placeholder={
+                  taskType === 'api'
+                    ? '{\n  "url": "https://api.example.com/endpoint",\n  "headers": {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer your-token"\n  },\n  "body": {\n    "key": "value"\n  }\n}'
+                    : taskType === 'k8s'
+                      ? '{\n  "operation": "apply",\n  "namespace": "default"\n}'
+                      : taskType === 'helm'
+                        ? '{\n  "namespace": "default",\n  "repository": {\n    "url": "https://charts.bitnami.com/bitnami",\n    "name": "bitnami"\n  },\n  "chart": "bitnami/nginx",\n  "version": "1.0.0",\n  "values": {},\n  "flags": {\n    "create_namespace": true,\n    "wait": true,\n    "timeout": "5m"\n  }\n}'
+                        : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
+                          ? '{\n  "target": {\n    "host": "mysql.example.com",\n    "port": 3306,\n    "user": "admin",\n    "password": "password",\n    "db": "test_db"\n  },\n  "exec_options": {\n    "trans_batch_size": 200,\n    "backup": true,\n    "timeout_ms": 600000\n  }\n}'
+                          : taskType === 'mongo' || taskType === 'elasticsearch'
+                            ? '{\n  "target": {\n    "host": "mongo.example.com",\n    "port": 27017,\n    "user": "admin",\n    "password": "password",\n    "db": "test_db"\n  },\n  "exec_options": {\n    "timeout_ms": 600000\n  }\n}'
+                            : '{"key": "value"}'
+                }
+              />
+            </Form.Item>
+          )}
+          {/* 文件上传/选择 - 根据任务类型显示不同的文件处理方式 */}
           {taskType === 'file' ? (
-            <Form.Item label="上传文件">
+            <Form.Item label="上传文件" required>
               <Upload
                 multiple
                 beforeUpload={(file) => {
@@ -709,10 +742,35 @@ export default function Tasks() {
               >
                 <Button icon={<UploadOutlined />}>选择文件 (最多50个)</Button>
               </Upload>
+              <div style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
+                文件将被上传并分发到选定的 Agent
+              </div>
             </Form.Item>
-          ) : (
-            <Form.Item name="file_id" label="关联文件">
-              <Select placeholder="选择文件（可选）" allowClear>
+          ) : (taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' || taskType === 'k8s') ? (
+            <Form.Item name="file_id" label="SQL/配置文件（可选）">
+              <Select placeholder="选择已上传的 SQL 或配置文件" allowClear showSearch>
+                {files
+                  .filter(file => {
+                    if (taskType === 'k8s') {
+                      return file.name.endsWith('.yaml') || file.name.endsWith('.yml') || file.name.endsWith('.json');
+                    }
+                    return file.name.endsWith('.sql') || file.name.endsWith('.zip');
+                  })
+                  .map((file) => (
+                    <Option key={file.id} value={file.id}>
+                      {file.name}
+                    </Option>
+                  ))}
+              </Select>
+              <div style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>
+                {taskType === 'k8s' 
+                  ? '如果选择文件，将从文件读取 YAML/JSON 配置，command 字段将被忽略'
+                  : '如果选择文件，将从文件读取 SQL，command 字段将被忽略'}
+              </div>
+            </Form.Item>
+          ) : taskType !== 'helm' ? (
+            <Form.Item name="file_id" label="关联文件（可选）">
+              <Select placeholder="选择已上传的文件" allowClear showSearch>
                 {files.map((file) => (
                   <Option key={file.id} value={file.id}>
                     {file.name}
@@ -720,7 +778,42 @@ export default function Tasks() {
                 ))}
               </Select>
             </Form.Item>
-          )}
+          ) : null}
+          
+          {/* 同步模式选项 - 所有任务类型都支持 */}
+          <Form.Item 
+            name="sync" 
+            label="执行模式" 
+            initialValue={false}
+            valuePropName="checked"
+            tooltip="同步模式：等待任务执行完成后返回结果。异步模式：立即返回，不等待执行完成。"
+          >
+            <Switch 
+              checkedChildren="同步模式" 
+              unCheckedChildren="异步模式（默认）"
+            />
+          </Form.Item>
+          
+          <Form.Item 
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.sync !== currentValues.sync}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue('sync') ? (
+                <Form.Item 
+                  name="timeout" 
+                  label="同步超时时间（秒）" 
+                  initialValue={60}
+                  rules={[
+                    { required: true, message: '请输入超时时间' },
+                    { type: 'number', min: 1, max: 300, message: '超时时间必须在 1-300 秒之间' }
+                  ]}
+                >
+                  <Input type="number" min={1} max={300} placeholder="60" />
+                </Form.Item>
+              ) : null
+            }
+          </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading} icon={<PlayCircleOutlined />}>
               执行任务

@@ -8,6 +8,42 @@
 - **Content-Type**: `application/json` (除文件上传接口外)
 - **字符编码**: UTF-8
 
+## 任务执行模式说明
+
+所有任务创建接口（`POST /api/v1/tasks`）都支持两种执行模式：
+
+### 异步模式（默认）
+
+- **参数**: `sync: false` 或不设置 `sync` 参数
+- **行为**: 接口立即返回任务对象，不等待执行完成
+- **适用场景**: 
+  - 长时间运行的任务
+  - 不需要立即获取结果的场景
+  - 批量操作
+- **响应**: 任务状态为 `running`，需要通过 `GET /api/v1/tasks/:id` 查询任务状态
+
+### 同步模式
+
+- **参数**: `sync: true`
+- **行为**: 接口等待任务执行完成后返回结果
+- **适用场景**:
+  - 短时间任务（< 30 秒）
+  - 需要立即获取执行结果的场景
+  - 简单的查询操作
+- **响应**: 任务状态为 `success` 或 `failed`，包含完整的执行结果
+- **超时控制**: 
+  - `timeout` 参数：同步模式超时时间（秒），默认 60，最大 300
+  - 超时后返回当前任务状态，可通过 `status` 字段判断是否完成
+
+### 通用参数
+
+所有任务创建接口都支持以下通用参数：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| sync | boolean | 否 | 是否同步等待任务完成，默认 `false`（异步模式） |
+| timeout | integer | 否 | 同步模式超时时间（秒），默认 60，最大 300 |
+
 ## 目录
 
 1. [Shell 命令执行接口](#1-shell-命令执行接口)
@@ -32,6 +68,10 @@
 
 通过创建任务的方式执行 Shell 命令，命令将在指定的 Agent 节点上执行。
 
+**执行模式**：
+- **异步模式（默认）**：接口立即返回任务对象，不等待执行完成。适用于长时间运行的任务。
+- **同步模式**：接口等待任务执行完成后返回结果。适用于短时间任务，需要立即获取执行结果。
+
 ### 请求信息
 
 - **方法**: `POST`
@@ -47,8 +87,12 @@
 | command | string | 是 | 要执行的 Shell 命令 |
 | params | object | 否 | 额外参数（可选） |
 | file_id | string | 否 | 关联的文件 ID（如果命令需要文件） |
+| sync | boolean | 否 | 是否同步等待任务完成，默认 `false`（异步模式） |
+| timeout | integer | 否 | 同步模式超时时间（秒），默认 60，最大 300 |
 
 ### 请求示例
+
+#### 异步模式（默认）
 
 ```json
 {
@@ -59,16 +103,30 @@
 }
 ```
 
+#### 同步模式
+
+```json
+{
+  "agent_id": "agent-123",
+  "type": "shell",
+  "command": "echo Hello World",
+  "sync": true,
+  "timeout": 30
+}
+```
+
 ### 响应格式
 
-**成功响应** (HTTP 201 Created)
+#### 异步模式响应（HTTP 201 Created）
+
+接口立即返回，任务状态为 `running`：
 
 ```json
 {
   "id": "task-abc123",
   "agent_id": "agent-123",
   "type": "shell",
-  "status": "pending",
+  "status": "running",
   "command": "ls -la /tmp",
   "params": "{}",
   "file_id": "",
@@ -80,6 +138,32 @@
   "updated_at": "2024-01-01T10:00:00Z"
 }
 ```
+
+#### 同步模式响应（HTTP 201 Created）
+
+接口等待任务完成后返回，任务状态为 `success` 或 `failed`：
+
+```json
+{
+  "id": "task-abc123",
+  "agent_id": "agent-123",
+  "type": "shell",
+  "status": "success",
+  "command": "echo Hello World",
+  "params": "{}",
+  "file_id": "",
+  "result": "Hello World\n",
+  "error": "",
+  "started_at": "2024-01-01T10:00:00Z",
+  "finished_at": "2024-01-01T10:00:01Z",
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:01Z"
+}
+```
+
+**同步模式超时响应**（HTTP 201 Created，但包含错误信息）：
+
+如果任务在指定超时时间内未完成，接口会返回当前任务状态，并在响应中包含超时错误提示。客户端可以通过检查 `status` 字段判断任务是否完成。
 
 ### 字段说明
 
@@ -133,6 +217,8 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 | command | string | 否 | HTTP 方法（GET、POST、PUT、DELETE 等），默认为 `"GET"` |
 | params | object | 是 | 请求参数，包含以下字段：<br><br>  - `url` (string, 必填): 请求的 URL<br>  - `headers` (object, 可选): HTTP 请求头<br>  - `body` (string/object, 可选): 请求体，可以是字符串或 JSON 对象 |
 | file_id | string | 否 | 关联的文件 ID（可选） |
+| sync | boolean | 否 | 是否同步等待任务完成，默认 `false`（异步模式） |
+| timeout | integer | 否 | 同步模式超时时间（秒），默认 60，最大 300 |
 
 ### params 参数详细说明
 
@@ -255,6 +341,8 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 | command | string | 是 | Kubernetes 资源的 YAML 或 JSON 配置内容 |
 | params | object | 否 | 操作参数（见下方说明） |
 | file_id | string | 否 | 关联的文件 ID（如果配置内容在文件中） |
+| sync | boolean | 否 | 是否同步等待任务完成，默认 `false`（异步模式） |
+| timeout | integer | 否 | 同步模式超时时间（秒），默认 60，最大 300 |
 
 ### params 参数说明
 
@@ -462,6 +550,8 @@ Tiangong Deploy 支持多种数据库的执行操作，包括 MySQL、PostgreSQL
 | command | string | 否 | SQL 语句或数据库操作命令（如果提供了 `file_id`，则从文件读取，command 可选） |
 | params | object | 否 | 数据库连接和执行参数（见各数据库详细说明） |
 | file_id | string | 否 | 关联的文件 ID（支持 SQL 文件和 zip 压缩包）<br>- 如果提供了 `file_id`，优先从文件读取 SQL<br>- 支持普通 `.sql` 文件和 `.zip` 压缩包<br>- 如果是 zip 文件，可以通过 `params.file_name` 指定要执行的文件名，否则自动查找第一个 `.sql` 文件 |
+| sync | boolean | 否 | 是否同步等待任务完成，默认 `false`（异步模式） |
+| timeout | integer | 否 | 同步模式超时时间（秒），默认 60，最大 300 |
 
 ### 通用响应格式
 

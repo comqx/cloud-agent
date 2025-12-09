@@ -17,3 +17,17 @@ code {
     monospace;
 }
 
+/* Agent 管理页面 - 集群行样式 */
+.cluster-row {
+  background-color: #f0f7ff !important;
+  font-weight: 500;
+}
+
+.cluster-row:hover {
+  background-color: #e6f4ff !important;
+}
+
+.cluster-row td {
+  border-bottom: 2px solid #d4edff !important;
+}
+

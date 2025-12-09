@@ -250,37 +250,54 @@ export default function Agents() {
       dataIndex: 'cluster',
       key: 'cluster',
       width: 200,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 8 }; // 集群行横跨所有8列
+        }
+        return { colSpan: 1 };
+      },
       render: (text: string, record: any) => {
         if (record.isCluster) {
           return (
-            <Space>
-              <ClusterOutlined />
-              <span style={{ fontWeight: 'bold' }}>{text}</span>
-              <Tag color="blue" style={{ fontSize: '11px' }}>
+            <Space style={{ width: '100%', padding: '8px 0' }}>
+              <ClusterOutlined style={{ fontSize: '16px', color: '#1890ff' }} />
+              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{text}</span>
+              <Tag color="blue" style={{ fontSize: '12px' }}>
                 {record.totalCount} 个节点
               </Tag>
               {record.onlineCount > 0 && (
-                <Tag color="green" style={{ fontSize: '11px' }}>
+                <Tag color="green" style={{ fontSize: '12px' }}>
                   {record.onlineCount} 在线
+                </Tag>
+              )}
+              {record.totalCount - record.onlineCount > 0 && (
+                <Tag color="default" style={{ fontSize: '12px' }}>
+                  {record.totalCount - record.onlineCount} 离线
                 </Tag>
               )}
             </Space>
           );
         }
-        return null;
+        return text || '-';
       },
     },
     {
       title: '主机名',
       dataIndex: 'hostname',
       key: 'hostname',
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 }; // 集群行不显示此列
+        }
+        return { colSpan: 1 };
+      },
       render: (text: string, record: any) => {
         if (record.isCluster) {
           return null;
         }
         return (
           <Space>
-            {text}
+            <span style={{ fontWeight: 500 }}>{text}</span>
             {record.protocol === 'wss' && (
               <Tooltip title="使用 WSS 安全连接">
                 <SafetyOutlined style={{ color: '#52c41a' }} />
@@ -294,28 +311,49 @@ export default function Agents() {
       title: 'IP',
       dataIndex: 'ip',
       key: 'ip',
+      width: 150,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 };
+        }
+        return { colSpan: 1 };
+      },
       render: (text: string, record: any) => {
         if (record.isCluster) {
           return null;
         }
-        return text;
+        return <code style={{ fontSize: '12px' }}>{text}</code>;
       },
     },
     {
       title: '版本',
       dataIndex: 'version',
       key: 'version',
+      width: 100,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 };
+        }
+        return { colSpan: 1 };
+      },
       render: (text: string, record: any) => {
         if (record.isCluster) {
           return null;
         }
-        return text;
+        return <Tag>{text || '-'}</Tag>;
       },
     },
     {
       title: '标签',
       dataIndex: 'tags',
       key: 'tags',
+      width: 200,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 };
+        }
+        return { colSpan: 1 };
+      },
       render: (tags: string[] | null | undefined, record: any) => {
         if (record.isCluster) {
           return null;
@@ -324,13 +362,13 @@ export default function Agents() {
           return <span style={{ color: '#999' }}>-</span>;
         }
         return (
-          <>
+          <Space size={[0, 4]} wrap>
             {tags.map(tag => (
-              <Tag color="blue" key={tag}>
+              <Tag color="blue" key={tag} style={{ margin: 0 }}>
                 {tag}
               </Tag>
             ))}
-          </>
+          </Space>
         );
       },
     },
@@ -338,33 +376,80 @@ export default function Agents() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 100,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 };
+        }
+        return { colSpan: 1 };
+      },
       render: (status: string, record: any) => {
         if (record.isCluster) {
           return null;
         }
         const colorMap: Record<string, string> = {
-          online: 'green',
+          online: 'success',
           offline: 'default',
-          error: 'red',
+          error: 'error',
         };
-        return <Tag color={colorMap[status]}>{status}</Tag>;
+        const textMap: Record<string, string> = {
+          online: '在线',
+          offline: '离线',
+          error: '错误',
+        };
+        return <Tag color={colorMap[status]}>{textMap[status] || status}</Tag>;
       },
     },
     {
       title: '最后活跃',
       dataIndex: 'last_seen',
       key: 'last_seen',
+      width: 180,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 };
+        }
+        return { colSpan: 1 };
+      },
       render: (text: string, record: any) => {
         if (record.isCluster) {
           return null;
         }
-        return text ? new Date(text).toLocaleString() : '-';
+        if (!text) return <span style={{ color: '#999' }}>-</span>;
+        const date = new Date(text);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        let timeText = '';
+        if (diffMins < 1) {
+          timeText = '刚刚';
+        } else if (diffMins < 60) {
+          timeText = `${diffMins} 分钟前`;
+        } else if (diffMins < 1440) {
+          timeText = `${Math.floor(diffMins / 60)} 小时前`;
+        } else {
+          timeText = date.toLocaleDateString();
+        }
+        
+        return (
+          <Tooltip title={date.toLocaleString()}>
+            <span>{timeText}</span>
+          </Tooltip>
+        );
       },
     },
     {
       title: '操作',
       key: 'action',
       width: 150,
+      fixed: 'right' as const,
+      onCell: (record: any) => {
+        if (record.isCluster) {
+          return { colSpan: 0 };
+        }
+        return { colSpan: 1 };
+      },
       render: (_: any, record: any) => {
         if (record.isCluster) {
           return null;
@@ -373,6 +458,7 @@ export default function Agents() {
           <Space>
             <Button
               type="link"
+              size="small"
               icon={<EditOutlined />}
               onClick={() => handleEditTags(record)}
             >
@@ -380,6 +466,7 @@ export default function Agents() {
             </Button>
             <Button
               type="link"
+              size="small"
               danger
               icon={<DeleteOutlined />}
               onClick={() => handleDelete(record)}
@@ -421,6 +508,13 @@ export default function Agents() {
         rowSelection={rowSelection}
         defaultExpandAllRows
         indentSize={20}
+        rowClassName={(record: any) => {
+          if (record.isCluster) {
+            return 'cluster-row';
+          }
+          return '';
+        }}
+        scroll={{ x: 'max-content' }}
       />
 
       {/* 单个 Agent 标签编辑 Modal */}
