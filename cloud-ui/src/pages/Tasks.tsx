@@ -517,7 +517,7 @@ export default function Tasks() {
                   value="__SELECT_ALL__"
                 >
                   <span style={{ fontWeight: 'bold' }}>
-                    {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
+                  {isAllSelected() ? '✓ 已全选' : `全选 (${getFilteredAgents().length} 个)`}
                   </span>
                 </Option>
               )}
@@ -574,66 +574,66 @@ export default function Tasks() {
           )}
           {/* Command 字段 - 根据任务类型显示不同的标签和帮助 */}
           {taskType !== 'file' && (
-            <Form.Item
-              name="command"
-              label={
-                taskType === 'api' ? 'HTTP 方法'
-                  : taskType === 'k8s' ? 'YAML/JSON 内容'
-                    : taskType === 'helm' ? 'Release 名称'
-                      : taskType === 'elasticsearch' ? 'Elasticsearch DSL (JSON)'
-                        : taskType === 'mongo' ? 'MongoDB 操作 (JSON)'
+          <Form.Item
+            name="command"
+            label={
+              taskType === 'api' ? 'HTTP 方法'
+                : taskType === 'k8s' ? 'YAML/JSON 内容'
+                  : taskType === 'helm' ? 'Release 名称'
+                    : taskType === 'elasticsearch' ? 'Elasticsearch DSL (JSON)'
+                      : taskType === 'mongo' ? 'MongoDB 操作 (JSON)'
                           : taskType === 'shell' ? 'Shell 命令'
                             : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' ? 'SQL 语句'
-                              : '命令/内容'
-              }
+                        : '命令/内容'
+            }
               rules={[{ required: !(taskType === 'helm' && helmOperation === 'list'), message: '请输入命令或内容' }]}
-              help={
-                taskType === 'api'
-                  ? '例如: GET, POST, PUT, DELETE 等'
-                  : taskType === 'k8s'
-                    ? '输入 Kubernetes 资源的 YAML 或 JSON 配置。支持多资源（使用 --- 分隔）'
-                    : taskType === 'helm'
-                      ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : '输入 Helm Release 名称，例如: my-nginx')
-                      : taskType === 'elasticsearch'
-                        ? '输入 Elasticsearch 操作 JSON，例如: {"operation": "bulk", "index": "test", "actions": [...]}'
-                        : taskType === 'mongo'
-                          ? '输入 MongoDB 操作 JSON，例如: {"operation": "insert", "collection": "users", "documents": [...]}'
+            help={
+              taskType === 'api'
+                ? '例如: GET, POST, PUT, DELETE 等'
+                : taskType === 'k8s'
+                  ? '输入 Kubernetes 资源的 YAML 或 JSON 配置。支持多资源（使用 --- 分隔）'
+                  : taskType === 'helm'
+                    ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : '输入 Helm Release 名称，例如: my-nginx')
+                    : taskType === 'elasticsearch'
+                      ? '输入 Elasticsearch 操作 JSON，例如: {"operation": "bulk", "index": "test", "actions": [...]}'
+                      : taskType === 'mongo'
+                        ? '输入 MongoDB 操作 JSON，例如: {"operation": "insert", "collection": "users", "documents": [...]}'
                           : taskType === 'shell'
                             ? '输入要执行的 Shell 命令'
                             : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
                               ? '输入 SQL 语句（支持多语句，用分号分隔）。也可以选择下方的 SQL 文件'
-                              : undefined
-              }
-            >
-              <TextArea
-                rows={
-                  taskType === 'api' ? 1
-                    : taskType === 'k8s' ? 10
-                      : taskType === 'helm' ? 1
-                        : taskType === 'elasticsearch' || taskType === 'mongo' ? 8
+                        : undefined
+            }
+          >
+            <TextArea
+              rows={
+                taskType === 'api' ? 1
+                  : taskType === 'k8s' ? 10
+                    : taskType === 'helm' ? 1
+                      : taskType === 'elasticsearch' || taskType === 'mongo' ? 8
                           : taskType === 'shell' ? 4
                             : 6
-                }
-                placeholder={
-                  taskType === 'api'
-                    ? 'GET'
-                    : taskType === 'k8s'
-                      ? 'YAML 格式:\napiVersion: v1\nkind: Pod\nmetadata:\n  name: my-pod\n  namespace: default\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.21\n\n或 JSON 格式:\n{"apiVersion":"v1","kind":"Pod","metadata":{"name":"my-pod"},"spec":{...}}'
-                      : taskType === 'helm'
-                        ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : 'my-nginx')
-                        : taskType === 'elasticsearch'
-                          ? '{"operation": "bulk", "index": "test_index", "actions": [{"index": {"_source": {"field": "value"}}}]}'
-                          : taskType === 'mongo'
-                            ? '{"operation": "insert", "collection": "users", "documents": [{"name": "test"}]}'
-                            : taskType === 'shell'
+              }
+              placeholder={
+                taskType === 'api'
+                  ? 'GET'
+                  : taskType === 'k8s'
+                    ? 'YAML 格式:\napiVersion: v1\nkind: Pod\nmetadata:\n  name: my-pod\n  namespace: default\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.21\n\n或 JSON 格式:\n{"apiVersion":"v1","kind":"Pod","metadata":{"name":"my-pod"},"spec":{...}}'
+                    : taskType === 'helm'
+                      ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : 'my-nginx')
+                      : taskType === 'elasticsearch'
+                        ? '{"operation": "bulk", "index": "test_index", "actions": [{"index": {"_source": {"field": "value"}}}]}'
+                        : taskType === 'mongo'
+                          ? '{"operation": "insert", "collection": "users", "documents": [{"name": "test"}]}'
+                          : taskType === 'shell'
                               ? '例如: ls -la /tmp'
                               : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
                                 ? '例如: SELECT * FROM users; INSERT INTO users (name) VALUES (\'test\');'
                                 : '输入命令或内容'
-                }
-                disabled={taskType === 'helm' && helmOperation === 'list'}
-              />
-            </Form.Item>
+              }
+              disabled={taskType === 'helm' && helmOperation === 'list'}
+            />
+          </Form.Item>
           )}
           {taskType === 'helm' && (helmOperation === 'install' || helmOperation === 'upgrade') && (
             <>
@@ -679,46 +679,46 @@ export default function Tasks() {
           {(taskType === 'api' || taskType === 'k8s' || taskType === 'helm' || 
             taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || 
             taskType === 'doris' || taskType === 'mongo' || taskType === 'elasticsearch') && (
-            <Form.Item
-              name="params"
-              label="参数 (JSON)"
-              help={
-                taskType === 'api'
-                  ? '示例: {"url": "https://api.example.com/users", "headers": {"Authorization": "Bearer token"}, "body": {"name": "test"}}'
-                  : taskType === 'k8s'
-                    ? '操作参数：{"operation": "create|update|delete|patch|apply", "namespace": "default", "patch_type": "strategic|merge|json"}。operation 默认为 apply'
-                    : taskType === 'helm'
-                      ? 'Helm 参数：{"namespace": "default", "repository": {"url": "https://charts.bitnami.com/bitnami", "name": "bitnami"}, "chart": "bitnami/nginx", "version": "1.0.0", "values": {"key": "value"}, "flags": {"create_namespace": true, "wait": true, "timeout": "5m"}}'
-                      : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
+          <Form.Item
+            name="params"
+            label="参数 (JSON)"
+            help={
+              taskType === 'api'
+                ? '示例: {"url": "https://api.example.com/users", "headers": {"Authorization": "Bearer token"}, "body": {"name": "test"}}'
+                : taskType === 'k8s'
+                  ? '操作参数：{"operation": "create|update|delete|patch|apply", "namespace": "default", "patch_type": "strategic|merge|json"}。operation 默认为 apply'
+                  : taskType === 'helm'
+                    ? 'Helm 参数：{"namespace": "default", "repository": {"url": "https://charts.bitnami.com/bitnami", "name": "bitnami"}, "chart": "bitnami/nginx", "version": "1.0.0", "values": {"key": "value"}, "flags": {"create_namespace": true, "wait": true, "timeout": "5m"}}'
+                    : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
                         ? '数据库参数：{"target": {"host": "...", "port": 3306, "user": "...", "password": "...", "db": "..."}, "connection": "default", "database": "test_db", "exec_options": {"trans_batch_size": 200, "backup": true, "timeout_ms": 600000}}'
-                        : taskType === 'mongo' || taskType === 'elasticsearch'
+                      : taskType === 'mongo' || taskType === 'elasticsearch'
                           ? '连接参数：{"target": {"host": "...", "port": 27017, "user": "...", "password": "...", "db": "..."}, "connection": "default", "database": "test_db", "exec_options": {"timeout_ms": 600000}}'
-                          : undefined
+                        : undefined
+            }
+          >
+            <TextArea
+              rows={
+                taskType === 'api' ? 6
+                  : taskType === 'k8s' ? 3
+                    : taskType === 'helm' ? 8
+                      : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' || taskType === 'mongo' || taskType === 'elasticsearch' ? 6
+                        : 2
               }
-            >
-              <TextArea
-                rows={
-                  taskType === 'api' ? 6
-                    : taskType === 'k8s' ? 3
-                      : taskType === 'helm' ? 8
-                        : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris' || taskType === 'mongo' || taskType === 'elasticsearch' ? 6
-                          : 2
-                }
-                placeholder={
-                  taskType === 'api'
-                    ? '{\n  "url": "https://api.example.com/endpoint",\n  "headers": {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer your-token"\n  },\n  "body": {\n    "key": "value"\n  }\n}'
-                    : taskType === 'k8s'
-                      ? '{\n  "operation": "apply",\n  "namespace": "default"\n}'
-                      : taskType === 'helm'
+              placeholder={
+                taskType === 'api'
+                  ? '{\n  "url": "https://api.example.com/endpoint",\n  "headers": {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer your-token"\n  },\n  "body": {\n    "key": "value"\n  }\n}'
+                  : taskType === 'k8s'
+                    ? '{\n  "operation": "apply",\n  "namespace": "default"\n}'
+                    : taskType === 'helm'
                         ? '{\n  "namespace": "default",\n  "repository": {\n    "url": "https://charts.bitnami.com/bitnami",\n    "name": "bitnami"\n  },\n  "chart": "bitnami/nginx",\n  "version": "1.0.0",\n  "values": {},\n  "flags": {\n    "create_namespace": true,\n    "wait": true,\n    "timeout": "5m"\n  }\n}'
-                        : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
+                      : taskType === 'mysql' || taskType === 'postgres' || taskType === 'clickhouse' || taskType === 'doris'
                           ? '{\n  "target": {\n    "host": "mysql.example.com",\n    "port": 3306,\n    "user": "admin",\n    "password": "password",\n    "db": "test_db"\n  },\n  "exec_options": {\n    "trans_batch_size": 200,\n    "backup": true,\n    "timeout_ms": 600000\n  }\n}'
-                          : taskType === 'mongo' || taskType === 'elasticsearch'
+                        : taskType === 'mongo' || taskType === 'elasticsearch'
                             ? '{\n  "target": {\n    "host": "mongo.example.com",\n    "port": 27017,\n    "user": "admin",\n    "password": "password",\n    "db": "test_db"\n  },\n  "exec_options": {\n    "timeout_ms": 600000\n  }\n}'
-                            : '{"key": "value"}'
-                }
-              />
-            </Form.Item>
+                          : '{"key": "value"}'
+              }
+            />
+          </Form.Item>
           )}
           {/* 文件上传/选择 - 根据任务类型显示不同的文件处理方式 */}
           {taskType === 'file' ? (
