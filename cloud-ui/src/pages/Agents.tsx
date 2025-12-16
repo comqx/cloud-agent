@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Table, Tag, Card, Button, message, Modal, Space, Tooltip, Input } from 'antd';
-import { ReloadOutlined, DeleteOutlined, ExclamationCircleOutlined, SafetyOutlined, EditOutlined, PlusOutlined, TagsOutlined, ClusterOutlined } from '@ant-design/icons';
+import { ReloadOutlined, DeleteOutlined, ExclamationCircleOutlined, SafetyOutlined, EditOutlined, PlusOutlined, TagsOutlined } from '@ant-design/icons';
 import { agentAPI, Agent } from '../services/api';
 
 export default function Agents() {
@@ -128,9 +128,9 @@ export default function Agents() {
 
     setBatchLoading(true);
     try {
-      // 只选择 Agent 节点（排除集群节点）
+      // 获取选中的 Agent
       const selectedAgents = agents.filter(a => 
-        selectedRowKeys.includes(a.id) && !a.id.startsWith('cluster-')
+        selectedRowKeys.includes(a.id)
       );
       let successCount = 0;
       let failCount = 0;
@@ -172,70 +172,24 @@ export default function Agents() {
     setBatchTagInputVisible(false);
   };
 
-  // 构建树形表格数据
-  const treeData = useMemo(() => {
-    const grouped: Record<string, Agent[]> = {};
-    const noCluster: Agent[] = [];
-    
-    agents.forEach(agent => {
-      const cluster = agent.env || '未分组';
-      if (cluster === '未分组') {
-        noCluster.push(agent);
-      } else {
-        if (!grouped[cluster]) {
-          grouped[cluster] = [];
-        }
-        grouped[cluster].push(agent);
-      }
-    });
-    
-    if (noCluster.length > 0) {
-      grouped['未分组'] = noCluster;
-    }
-    
-    // 构建树形数据
-    const clusters = Object.keys(grouped).sort();
-    return clusters.map(cluster => {
-      const clusterAgents = grouped[cluster];
-      const onlineCount = clusterAgents.filter(a => a.status === 'online').length;
-      const totalCount = clusterAgents.length;
-      
-      return {
-        key: `cluster-${cluster}`,
-        id: `cluster-${cluster}`,
-        isCluster: true,
-        cluster: cluster,
-        hostname: cluster,
-        ip: '',
-        version: '',
-        tags: [],
-        status: '',
-        last_seen: '',
-        onlineCount,
-        totalCount,
-        children: clusterAgents.map(agent => ({
-          ...agent,
-          key: agent.id,
-          isCluster: false,
-        })),
-      };
-    });
+  // 准备表格数据，直接使用 agents 数组
+  const tableData = useMemo(() => {
+    return agents.map(agent => ({
+      ...agent,
+      key: agent.id,
+      cluster: agent.env || '未分组',
+    }));
   }, [agents]);
 
   // Table 行选择配置
   const rowSelection = {
     selectedRowKeys,
     onChange: (selectedKeys: React.Key[]) => {
-      // 过滤掉集群节点，只保留 Agent 节点
-      const agentKeys = selectedKeys.filter(key => 
-        typeof key === 'string' && !key.startsWith('cluster-')
-      );
-      setSelectedRowKeys(agentKeys);
+      setSelectedRowKeys(selectedKeys);
     },
     getCheckboxProps: (record: any) => ({
-      disabled: record.isCluster || record.status === 'offline', // 禁用集群行和离线 Agent
+      disabled: record.status === 'offline', // 禁用离线 Agent
     }),
-    checkStrictly: true, // 父子节点选择状态独立
   };
 
   useEffect(() => {
@@ -244,57 +198,82 @@ export default function Agents() {
     return () => clearInterval(interval);
   }, []);
 
+  // 获取所有唯一的集群名称用于筛选
+  const clusterFilters = useMemo(() => {
+    const clusters = Array.from(new Set(agents.map(a => a.env).filter(Boolean))) as string[];
+    return clusters.sort().map(cluster => ({
+      text: cluster,
+      value: cluster,
+    }));
+  }, [agents]);
+
+  // 获取所有唯一的标签用于筛选
+  const tagFilters = useMemo(() => {
+    const allTags = new Set<string>();
+    agents.forEach(agent => {
+      if (agent.tags && Array.isArray(agent.tags)) {
+        agent.tags.forEach(tag => allTags.add(tag));
+      }
+    });
+    return Array.from(allTags).sort().map(tag => ({
+      text: tag,
+      value: tag,
+    }));
+  }, [agents]);
+
   const columns = [
     {
       title: '集群',
       dataIndex: 'cluster',
       key: 'cluster',
       width: 200,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 8 }; // 集群行横跨所有8列
-        }
-        return { colSpan: 1 };
+      filters: clusterFilters,
+      onFilter: (value: any, record: any) => {
+        return record.env === value;
       },
-      render: (text: string, record: any) => {
-        if (record.isCluster) {
-          return (
-            <Space style={{ width: '100%', padding: '8px 0' }}>
-              <ClusterOutlined style={{ fontSize: '16px', color: '#1890ff' }} />
-              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{text}</span>
-              <Tag color="blue" style={{ fontSize: '12px' }}>
-                {record.totalCount} 个节点
-              </Tag>
-              {record.onlineCount > 0 && (
-                <Tag color="green" style={{ fontSize: '12px' }}>
-                  {record.onlineCount} 在线
-                </Tag>
-              )}
-              {record.totalCount - record.onlineCount > 0 && (
-                <Tag color="default" style={{ fontSize: '12px' }}>
-                  {record.totalCount - record.onlineCount} 离线
-                </Tag>
-              )}
-            </Space>
-          );
-        }
-        return text || '-';
+      render: (text: string) => {
+        return <span>{text || '未分组'}</span>;
       },
     },
     {
       title: '主机名',
       dataIndex: 'hostname',
       key: 'hostname',
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 }; // 集群行不显示此列
-        }
-        return { colSpan: 1 };
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: any) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="搜索主机名"
+            value={selectedKeys[0]}
+            onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={() => confirm()}
+            style={{ marginBottom: 8, display: 'block' }}
+          />
+          <Space>
+            <Button
+              type="primary"
+              onClick={() => confirm()}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </Space>
+        </div>
+      ),
+      onFilter: (value: any, record: any) => {
+        return record.hostname && record.hostname.toLowerCase().includes(value.toLowerCase());
       },
       render: (text: string, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
         return (
           <Space>
             <span style={{ fontWeight: 500 }}>{text}</span>
@@ -312,16 +291,41 @@ export default function Agents() {
       dataIndex: 'ip',
       key: 'ip',
       width: 150,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 };
-        }
-        return { colSpan: 1 };
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: any) => (
+        <div style={{ padding: 8 }}>
+          <Input
+            placeholder="搜索 IP 地址"
+            value={selectedKeys[0]}
+            onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+            onPressEnter={() => confirm()}
+            style={{ marginBottom: 8, display: 'block' }}
+          />
+          <Space>
+            <Button
+              type="primary"
+              onClick={() => confirm()}
+              size="small"
+              style={{ width: 90 }}
+            >
+              搜索
+            </Button>
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm();
+              }}
+              size="small"
+              style={{ width: 90 }}
+            >
+              重置
+            </Button>
+          </Space>
+        </div>
+      ),
+      onFilter: (value: any, record: any) => {
+        return record.ip && record.ip.toLowerCase().includes(value.toLowerCase());
       },
-      render: (text: string, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
+      render: (text: string) => {
         return <code style={{ fontSize: '12px' }}>{text}</code>;
       },
     },
@@ -330,16 +334,7 @@ export default function Agents() {
       dataIndex: 'version',
       key: 'version',
       width: 100,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 };
-        }
-        return { colSpan: 1 };
-      },
-      render: (text: string, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
+      render: (text: string) => {
         return <Tag>{text || '-'}</Tag>;
       },
     },
@@ -348,16 +343,11 @@ export default function Agents() {
       dataIndex: 'tags',
       key: 'tags',
       width: 200,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 };
-        }
-        return { colSpan: 1 };
+      filters: tagFilters,
+      onFilter: (value: any, record: any) => {
+        return record.tags && Array.isArray(record.tags) && record.tags.includes(value);
       },
-      render: (tags: string[] | null | undefined, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
+      render: (tags: string[] | null | undefined) => {
         if (!tags || !Array.isArray(tags) || tags.length === 0) {
           return <span style={{ color: '#999' }}>-</span>;
         }
@@ -377,16 +367,15 @@ export default function Agents() {
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 };
-        }
-        return { colSpan: 1 };
+      filters: [
+        { text: '在线', value: 'online' },
+        { text: '离线', value: 'offline' },
+        { text: '错误', value: 'error' },
+      ],
+      onFilter: (value: any, record: any) => {
+        return record.status === value;
       },
-      render: (status: string, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
+      render: (status: string) => {
         const colorMap: Record<string, string> = {
           online: 'success',
           offline: 'default',
@@ -405,16 +394,7 @@ export default function Agents() {
       dataIndex: 'last_seen',
       key: 'last_seen',
       width: 180,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 };
-        }
-        return { colSpan: 1 };
-      },
-      render: (text: string, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
+      render: (text: string) => {
         if (!text) return <span style={{ color: '#999' }}>-</span>;
         const date = new Date(text);
         const now = new Date();
@@ -444,16 +424,7 @@ export default function Agents() {
       key: 'action',
       width: 150,
       fixed: 'right' as const,
-      onCell: (record: any) => {
-        if (record.isCluster) {
-          return { colSpan: 0 };
-        }
-        return { colSpan: 1 };
-      },
       render: (_: any, record: any) => {
-        if (record.isCluster) {
-          return null;
-        }
         return (
           <Space>
             <Button
@@ -501,19 +472,11 @@ export default function Agents() {
     >
       <Table
         columns={columns}
-        dataSource={treeData}
+        dataSource={tableData}
         rowKey="key"
         loading={loading}
-        pagination={false}
+        pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
         rowSelection={rowSelection}
-        defaultExpandAllRows
-        indentSize={20}
-        rowClassName={(record: any) => {
-          if (record.isCluster) {
-            return 'cluster-row';
-          }
-          return '';
-        }}
         scroll={{ x: 'max-content' }}
       />
 

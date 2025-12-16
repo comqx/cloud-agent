@@ -42,7 +42,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
       <Header style={{ background: '#001529', color: '#fff', padding: '0 24px' }}>
-        <h1 style={{ color: '#fff', margin: 0, lineHeight: '64px' }}>Tiangong Deploy</h1>
+        <h1 style={{ color: '#fff', margin: 0, lineHeight: '64px' }}>Cloud UI</h1>
       </Header>
       <AntLayout>
         <Sider width={200} style={{ background: '#fff' }}>

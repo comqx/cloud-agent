@@ -768,16 +768,6 @@ export default function Tasks() {
                   : '如果选择文件，将从文件读取 SQL，command 字段将被忽略'}
               </div>
             </Form.Item>
-          ) : taskType !== 'helm' ? (
-            <Form.Item name="file_id" label="关联文件（可选）">
-              <Select placeholder="选择已上传的文件" allowClear showSearch>
-                {files.map((file) => (
-                  <Option key={file.id} value={file.id}>
-                    {file.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
           ) : null}
           
           {/* 同步模式选项 - 所有任务类型都支持 */}
