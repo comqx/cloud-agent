@@ -131,12 +131,15 @@ func (s *Server) createTask(c *gin.Context) {
 		}
 	}
 
+	log.Printf("[DEBUG] Creating task with sync=%v, timeout=%d", sync, timeout)
+
 	task, err := s.taskMgr.CreateTask(req.AgentID, req.Type, req.Command, req.Params, req.FileID, sync, timeout)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("[DEBUG] Returning task %s with Params: %s", task.ID, task.Params)
 	c.JSON(http.StatusCreated, task)
 }
 

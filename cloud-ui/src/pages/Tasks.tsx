@@ -170,6 +170,10 @@ export default function Tasks() {
             const fileId = uploadRes.data.id;
 
             // Create task for each agent
+            // 确保 sync 值正确
+            const syncValue = values.sync === true || values.sync === 'true' || values.sync === 1;
+            const timeoutValue = values.timeout ? Number(values.timeout) : 60;
+
             const promises = agentIds.map((agentId: string) =>
               taskAPI.create({
                 agent_id: agentId,
@@ -177,8 +181,8 @@ export default function Tasks() {
                 command: values.command || '',
                 params: values.params ? JSON.parse(values.params) : undefined,
                 file_id: fileId,
-                sync: values.sync || false,
-                timeout: values.timeout || 60,
+                sync: syncValue,
+                timeout: timeoutValue,
               })
             );
 
@@ -235,6 +239,10 @@ export default function Tasks() {
           params.values_file_id = valuesFileId;
         }
 
+        // 确保 sync 值正确
+        const syncValue = values.sync === true || values.sync === 'true' || values.sync === 1;
+        const timeoutValue = values.timeout ? Number(values.timeout) : 60;
+
         // Create tasks
         const promises = agentIds.map((agentId: string) =>
           taskAPI.create({
@@ -242,8 +250,8 @@ export default function Tasks() {
             type: values.type,
             command: values.command || '',
             params: params,
-            sync: values.sync || false,
-            timeout: values.timeout || 60,
+            sync: syncValue,
+            timeout: timeoutValue,
           })
         );
 
@@ -259,17 +267,25 @@ export default function Tasks() {
           params.operation = helmOperation;
         }
 
-        const promises = agentIds.map((agentId: string) =>
-          taskAPI.create({
+        // 确保 sync 值正确（Switch 组件返回的是 boolean）
+        const syncValue = values.sync === true || values.sync === 'true' || values.sync === 1;
+        const timeoutValue = values.timeout ? Number(values.timeout) : 60;
+
+        console.log('[DEBUG] Creating task with sync:', syncValue, 'timeout:', timeoutValue, 'values.sync:', values.sync);
+
+        const promises = agentIds.map((agentId: string) => {
+          const taskData = {
             agent_id: agentId,
             type: values.type,
             command: values.command || '',
             params: Object.keys(params).length > 0 ? params : undefined,
             file_id: fileId,
-            sync: values.sync || false,
-            timeout: values.timeout || 60,
-          })
-        );
+            sync: syncValue,
+            timeout: timeoutValue,
+          };
+          console.log('[DEBUG] Task data:', JSON.stringify(taskData, null, 2));
+          return taskAPI.create(taskData);
+        });
 
         await Promise.all(promises);
         message.success(`成功创建 ${agentIds.length} 个任务`);
@@ -371,6 +387,42 @@ export default function Tasks() {
           canceled: 'warning',
         };
         return <Tag color={colorMap[status]}>{status}</Tag>;
+      },
+    },
+    {
+      title: '执行模式',
+      key: 'sync_mode',
+      width: 120,
+      render: (_: any, record: Task) => {
+        let isSync = false;
+        let timeout = 60;
+        
+        // 从 params 中解析 sync 信息
+        if (record.params) {
+          try {
+            const params = typeof record.params === 'string' 
+              ? JSON.parse(record.params) 
+              : record.params;
+            if (params && typeof params === 'object' && params !== null) {
+              // 检查 _sync 字段（可能是 boolean true 或字符串 "true"）
+              const syncValue = params._sync;
+              console.log('[DEBUG] Task params:', record.id, 'params:', params, '_sync:', syncValue, 'type:', typeof syncValue);
+              isSync = syncValue === true || syncValue === 'true' || syncValue === 1;
+              timeout = params._timeout || 60;
+            }
+          } catch (e) {
+            // 解析失败，默认为异步
+            console.warn('Failed to parse task params:', e, record.params);
+          }
+        } else {
+          console.log('[DEBUG] Task params is empty:', record.id);
+        }
+        
+        return (
+          <Tag color={isSync ? 'blue' : 'default'}>
+            {isSync ? `同步(${timeout}s)` : '异步'}
+          </Tag>
+        );
       },
     },
     {
@@ -781,6 +833,10 @@ export default function Tasks() {
             <Switch 
               checkedChildren="同步模式" 
               unCheckedChildren="异步模式（默认）"
+              onChange={(checked) => {
+                // 确保值正确设置
+                form.setFieldsValue({ sync: checked });
+              }}
             />
           </Form.Item>
           

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -67,11 +68,32 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 		}
 	}
 
+	// 将 sync 和 timeout 信息添加到 params 中（用于前端显示）
+	if params == nil {
+		params = make(map[string]interface{})
+	}
+	params["_sync"] = sync
+	if sync {
+		params["_timeout"] = timeout
+	}
+	
+	// 调试日志：确保 _sync 被正确添加
+	if sync {
+		log.Printf("[DEBUG] Task %s: Added _sync=true, _timeout=%d to params", taskID, timeout)
+	} else {
+		log.Printf("[DEBUG] Task %s: Added _sync=false to params", taskID)
+	}
+
 	// Serialize parameters
 	paramsJSON := ""
 	if params != nil {
-		paramsBytes, _ := json.Marshal(params)
-		paramsJSON = string(paramsBytes)
+		paramsBytes, err := json.Marshal(params)
+		if err != nil {
+			log.Printf("[ERROR] Failed to marshal params: %v", err)
+		} else {
+			paramsJSON = string(paramsBytes)
+			log.Printf("[DEBUG] Task %s: Serialized params JSON: %s", taskID, paramsJSON)
+		}
 	}
 
 	task := &common.Task{
@@ -83,6 +105,8 @@ func (m *Manager) CreateTask(agentID string, taskType common.TaskType, command s
 		Params:  paramsJSON,
 		FileID:  fileID,
 	}
+	
+	log.Printf("[DEBUG] Task %s: Created task with Params field: %s", taskID, task.Params)
 
 	if err := m.db.CreateTask(task); err != nil {
 		return nil, err

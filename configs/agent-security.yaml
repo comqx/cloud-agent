@@ -24,14 +24,14 @@ allowed_commands:
   - pattern: "^ls\\s*$"
     description: "列出当前目录"
   
-  - pattern: "^cat\\s+/[^;|&]*$"
-    description: "读取文件内容"
+  - pattern: "^cat\\s+([^;|&]+)?$"
+    description: "读取文件内容（支持绝对路径和相对路径）"
   
-  - pattern: "^head\\s+(-n\\s+\\d+\\s+)?/[^;|&]*$"
-    description: "查看文件头部"
+  - pattern: "^head\\s+(-n\\s+\\d+\\s+)?([^;|&]+)?$"
+    description: "查看文件头部（支持绝对路径和相对路径）"
   
-  - pattern: "^tail\\s+(-[fnc]\\s+\\d+\\s+)?/[^;|&]*$"
-    description: "查看文件尾部"
+  - pattern: "^tail\\s+(-[fnc]+\\s+)?(-n\\s+\\d+\\s+)?([^;|&]+)?$"
+    description: "查看文件尾部（支持绝对路径和相对路径，支持 -f、-n 等参数）"
   
   - pattern: "^grep\\s+.*"
     description: "文本搜索"
@@ -83,8 +83,8 @@ allowed_commands:
   - pattern: "^df\\s+(-[a-z]+\\s+)?.*"
     description: "磁盘使用情况"
   
-  - pattern: "^du\\s+(-[a-z]+\\s+)?/[^;|&]*$"
-    description: "目录大小统计"
+  - pattern: "^du\\s+(-[a-z]+\\s+)?([^;|&]+)?$"
+    description: "目录大小统计（支持绝对路径和相对路径）"
 
 # 禁止的命令模式（黑名单）
 # 即使白名单未启用，这些命令也会被阻止
