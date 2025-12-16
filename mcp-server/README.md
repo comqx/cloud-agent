@@ -85,7 +85,7 @@ python cloud_tasks.py
 
 ### execute_k8s_operation
 
-操作 Kubernetes 集群中的资源。
+操作 Kubernetes 集群中的资源（k8s-api）。Cloud 会调用 Agent，Agent 通过 Kubernetes API 执行相关操作。
 
 **参数：**
 - `agent_id` (string, 必填): Agent 节点 ID

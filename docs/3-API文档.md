@@ -48,7 +48,7 @@
 
 1. [Shell 命令执行接口](#1-shell-命令执行接口)
 2. [API 请求接口](#2-api-请求接口)
-3. [Kubernetes 资源操作接口](#3-kubernetes-资源操作接口)
+3. [Kubernetes 资源操作接口（k8s-api）](#3-kubernetes-资源操作接口k8s-api)
 4. [数据库执行接口](#4-数据库执行接口)
    - [4.1 MySQL 执行接口](#41-mysql-执行接口)
    - [4.2 PostgreSQL 执行接口](#42-postgresql-执行接口)
@@ -320,11 +320,13 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 
 ---
 
-## 3. Kubernetes 资源操作接口
+## 3. Kubernetes 资源操作接口（k8s-api）
 
 ### 接口说明
 
 通过创建任务的方式操作 Kubernetes 集群中的资源，支持创建、更新、删除、补丁和应用等操作。支持 YAML 和 JSON 两种格式的资源配置。
+
+**执行流程**：Cloud 调用 Agent，Agent 通过 Kubernetes API (k8s-api) 执行相关操作。
 
 ### 请求信息
 

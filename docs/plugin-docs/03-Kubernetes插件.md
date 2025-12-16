@@ -1,12 +1,14 @@
-# Kubernetes 插件使用指南
+# Kubernetes 插件使用指南（k8s-api）
 
 ## 概述
 
-Kubernetes 插件使用 `client-go` SDK 直接操作 Kubernetes 集群，支持资源的创建、更新、删除、查询等操作。支持 YAML 和 JSON 格式的资源定义。
+Kubernetes 插件（任务类型：k8s-api）使用 `client-go` SDK 直接操作 Kubernetes 集群，支持资源的创建、更新、删除、查询等操作。支持 YAML 和 JSON 格式的资源定义。
+
+**执行流程**：Cloud 调用 Agent，Agent 通过 Kubernetes API (k8s-api) 执行相关操作。
 
 ## 任务类型
 
-`k8s`
+`k8s`（在 UI 中显示为 `k8s-api`）
 
 ## 功能特性
 

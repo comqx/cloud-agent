@@ -170,7 +170,7 @@ def create_tools() -> List[Tool]:
         ),
         Tool(
             name="execute_k8s_operation",
-            description="操作 Kubernetes 集群中的资源，支持创建、更新、删除、补丁和应用等操作。支持 YAML 和 JSON 两种格式。",
+            description="操作 Kubernetes 集群中的资源（k8s-api），支持创建、更新、删除、补丁和应用等操作。支持 YAML 和 JSON 两种格式。Cloud 会调用 Agent，Agent 通过 Kubernetes API 执行操作。",
             inputSchema={
                 "type": "object",
                 "properties": {

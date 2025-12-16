@@ -555,7 +555,7 @@ export default function Tasks() {
               <Option value="elasticsearch">Elasticsearch</Option>
               <Option value="clickhouse">ClickHouse</Option>
               <Option value="doris">Doris</Option>
-              <Option value="k8s">Kubernetes</Option>
+              <Option value="k8s">k8s-api</Option>
               <Option value="api">API 调用</Option>
               <Option value="file">传递文件</Option>
               <Option value="helm">Helm 部署</Option>
@@ -591,7 +591,7 @@ export default function Tasks() {
               taskType === 'api'
                 ? '例如: GET, POST, PUT, DELETE 等'
                 : taskType === 'k8s'
-                  ? '输入 Kubernetes 资源的 YAML 或 JSON 配置。支持多资源（使用 --- 分隔）'
+                  ? '输入 Kubernetes 资源的 YAML 或 JSON 配置。Cloud 会调用 Agent，Agent 通过 k8s API 执行操作。支持多资源（使用 --- 分隔）'
                   : taskType === 'helm'
                     ? (helmOperation === 'list' ? '列出操作不需要 Release 名称' : '输入 Helm Release 名称，例如: my-nginx')
                     : taskType === 'elasticsearch'
