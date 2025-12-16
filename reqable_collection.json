@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "Cloud Agent API",
-		"description": "Tiangong Deploy Cloud Agent API 测试集合",
+		"description": "Cloud UI Cloud Agent API 测试集合",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "cloud-agent"
 	},

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 func TestNewESExecutor(t *testing.T) {
@@ -186,9 +186,9 @@ func TestESExecutor_Execute_ValidOperation(t *testing.T) {
 	defer server.Close()
 
 	operation := map[string]interface{}{
-		"operation":  "index",
-		"index":      "test_index",
-		"id":         "test_id",
+		"operation": "index",
+		"index":     "test_index",
+		"id":        "test_id",
 		"doc": map[string]interface{}{
 			"field": "value",
 		},
@@ -210,4 +210,3 @@ func TestESExecutor_Cancel(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 }
-

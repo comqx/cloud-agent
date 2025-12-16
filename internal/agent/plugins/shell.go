@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/agent/security"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/agent/security"
+	"github.com/cloud-agent/internal/common"
 )
 
 // ShellExecutor Shell 命令执行器

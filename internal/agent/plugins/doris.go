@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 // DorisExecutor Doris 执行器
@@ -57,4 +57,3 @@ func (e *DorisExecutor) Execute(taskID string, command string, params map[string
 	// 调用 MySQLExecutor 执行
 	return e.MySQLExecutor.Execute(taskID, command, params, fileID, logCallback)
 }
-

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,6 +19,7 @@ type MongoExecutor struct {
 	config      map[string]interface{}
 	connections map[string]*mongo.Client // 缓存动态创建的连接（基于连接 URI 哈希）
 	mu          sync.RWMutex
+	validator   *SQLSecurityValidator // 操作安全验证器
 }
 
 // NewMongoExecutor 创建 MongoDB 执行器
@@ -26,6 +27,8 @@ func NewMongoExecutor(config map[string]interface{}) *MongoExecutor {
 	exec := &MongoExecutor{
 		config:      config,
 		connections: make(map[string]*mongo.Client),
+		// 默认启用严格模式
+		validator: NewSQLSecurityValidator(false, true),
 	}
 
 	// 初始化连接
@@ -319,6 +322,22 @@ func (e *MongoExecutor) executeOperations(ctx context.Context, db *mongo.Databas
 
 // executeJSONOperations 执行 JSON 格式的操作序列
 func (e *MongoExecutor) executeJSONOperations(ctx context.Context, db *mongo.Database, operations []map[string]interface{}, execOpts execOptions, logCallback LogCallback, taskID string) (*mongoExecResult, error) {
+	// 验证所有操作
+	for i, op := range operations {
+		if err := e.validator.ValidateMongoOperation(op); err != nil {
+			errorMsg := fmt.Sprintf("Operation %d security validation failed: %v", i+1, err)
+			if logCallback != nil {
+				logCallback(taskID, "error", errorMsg)
+			}
+			return nil, fmt.Errorf("security validation failed for operation %d: %w", i+1, err)
+		}
+	}
+
+	// 记录审计日志
+	if logCallback != nil {
+		logCallback(taskID, "audit", fmt.Sprintf("Executing %d MongoDB operation(s) after security validation", len(operations)))
+	}
+
 	var totalAffected int64
 	var results []string
 	var hasError bool
@@ -335,6 +354,11 @@ func (e *MongoExecutor) executeJSONOperations(ctx context.Context, db *mongo.Dat
 			}
 			results = append(results, fmt.Sprintf("Operation %d: ERROR - %s", i+1, errorMsg))
 			continue
+		}
+
+		// 记录操作（用于审计）
+		if logCallback != nil {
+			logCallback(taskID, "audit", fmt.Sprintf("Executing operation %d: %s on collection %s", i+1, opType, collection))
 		}
 
 		coll := db.Collection(collection)
@@ -563,4 +587,3 @@ func (e *MongoExecutor) Close() error {
 
 	return nil
 }
-

@@ -3,7 +3,7 @@ package plugins
 import (
 	"fmt"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 // DatabaseExecutor 数据库执行器接口
@@ -63,5 +63,3 @@ func (e *RedisExecutor) Execute(taskID string, command string, params map[string
 func (e *RedisExecutor) Cancel(taskID string) error {
 	return nil
 }
-
-

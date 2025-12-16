@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 // APIExecutor HTTP API 执行器
@@ -146,4 +146,3 @@ func (e *APIExecutor) Cancel(taskID string) error {
 	// API 执行通过 context 自动取消
 	return nil
 }
-

@@ -3,7 +3,7 @@ package plugins
 import (
 	"testing"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -221,4 +221,3 @@ func TestPostgresExecutor_Cancel(t *testing.T) {
 
 // 注意：实际的数据库执行测试需要真实的 PostgreSQL 数据库
 // 可以使用 testcontainers 或 mock 数据库连接进行集成测试
-

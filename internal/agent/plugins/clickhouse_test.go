@@ -3,7 +3,7 @@ package plugins
 import (
 	"testing"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 func TestNewClickHouseExecutor(t *testing.T) {
@@ -206,4 +206,3 @@ func TestClickHouseExecutor_Cancel(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 }
-

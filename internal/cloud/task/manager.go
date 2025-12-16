@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloud-agent/internal/cloud/agent"
+	"github.com/cloud-agent/internal/cloud/storage"
+	"github.com/cloud-agent/internal/common"
 	"github.com/google/uuid"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/agent"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/cloud/storage"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // Manager 任务管理器
@@ -33,10 +33,10 @@ type Manager struct {
 // NewManager 创建任务管理器
 func NewManager(db *storage.Database, agentMgr *agent.Manager) *Manager {
 	return &Manager{
-		db:            db,
-		agentMgr:      agentMgr,
+		db:             db,
+		agentMgr:       agentMgr,
 		logSubscribers: make(map[string][]*common.WSConnection),
-		waitChannels:  make(map[string]chan *common.Task),
+		waitChannels:   make(map[string]chan *common.Task),
 	}
 }
 

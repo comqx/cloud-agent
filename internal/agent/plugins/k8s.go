@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -136,7 +136,7 @@ func (e *K8sExecutor) Execute(taskID string, command string, params map[string]i
 // detectFormat 检测内容格式（YAML 或 JSON）
 func (e *K8sExecutor) detectFormat(content string) string {
 	content = strings.TrimSpace(content)
-	
+
 	// 检查是否是 JSON 格式（以 { 开头）
 	if strings.HasPrefix(content, "{") {
 		// 验证是否是有效的 JSON 且包含 Kubernetes 资源字段
@@ -149,14 +149,14 @@ func (e *K8sExecutor) detectFormat(content string) string {
 			}
 		}
 	}
-	
+
 	// 检查是否是 YAML 格式
 	hasApiVersion := strings.HasPrefix(content, "apiVersion:") || strings.Contains(content, "\napiVersion:")
 	hasKind := strings.Contains(content, "kind:") || strings.Contains(content, "\nkind:")
 	if hasApiVersion && hasKind {
 		return "yaml"
 	}
-	
+
 	return "unknown"
 }
 
@@ -207,7 +207,7 @@ func (e *K8sExecutor) processManifest(ctx context.Context, manifest string, form
 			return "", fmt.Errorf("failed to decode JSON: %w", err)
 		}
 		obj.Object = objMap
-		
+
 		// 获取 GVK
 		apiVersion, _ := objMap["apiVersion"].(string)
 		kind, _ := objMap["kind"].(string)
@@ -469,7 +469,6 @@ func (e *K8sExecutor) applyResource(ctx context.Context, dr dynamic.ResourceInte
 	return string(resultJSON), nil
 }
 
-
 // Cancel 取消执行
 func (e *K8sExecutor) Cancel(taskID string) error {
 	// K8s 执行通过 context 自动取消
@@ -479,59 +478,59 @@ func (e *K8sExecutor) Cancel(taskID string) error {
 // pluralizeKind 将 Kind 转换为复数形式（用于构建 Resource 名称）
 func (e *K8sExecutor) pluralizeKind(kind string) string {
 	kindLower := strings.ToLower(kind)
-	
+
 	// Kubernetes 标准资源的准确映射
 	resourceMap := map[string]string{
 		// Core resources
 		"pod":                   "pods",
-		"service":              "services",
-		"configmap":            "configmaps",
-		"secret":               "secrets",
-		"namespace":            "namespaces",
-		"node":                 "nodes",
-		"persistentvolume":     "persistentvolumes",
+		"service":               "services",
+		"configmap":             "configmaps",
+		"secret":                "secrets",
+		"namespace":             "namespaces",
+		"node":                  "nodes",
+		"persistentvolume":      "persistentvolumes",
 		"persistentvolumeclaim": "persistentvolumeclaims",
-		"serviceaccount":       "serviceaccounts",
-		"endpoints":            "endpoints",
-		"endpoint":             "endpoints",
-		
+		"serviceaccount":        "serviceaccounts",
+		"endpoints":             "endpoints",
+		"endpoint":              "endpoints",
+
 		// Apps resources
-		"deployment":           "deployments",
-		"replicaset":           "replicasets",
-		"statefulset":          "statefulsets",
-		"daemonset":            "daemonsets",
-		"job":                  "jobs",
-		"cronjob":              "cronjobs",
-		
+		"deployment":  "deployments",
+		"replicaset":  "replicasets",
+		"statefulset": "statefulsets",
+		"daemonset":   "daemonsets",
+		"job":         "jobs",
+		"cronjob":     "cronjobs",
+
 		// RBAC resources
-		"role":                 "roles",
-		"rolebinding":          "rolebindings",
-		"clusterrole":          "clusterroles",
-		"clusterrolebinding":   "clusterrolebindings",
-		
+		"role":               "roles",
+		"rolebinding":        "rolebindings",
+		"clusterrole":        "clusterroles",
+		"clusterrolebinding": "clusterrolebindings",
+
 		// Networking resources
-		"ingress":              "ingresses",
-		"networkpolicy":        "networkpolicies",
-		
+		"ingress":       "ingresses",
+		"networkpolicy": "networkpolicies",
+
 		// Storage resources
-		"storageclass":        "storageclasses",
-		
+		"storageclass": "storageclasses",
+
 		// Custom resources (常见模式)
 		"customresourcedefinition": "customresourcedefinitions",
-		"crd":                  "customresourcedefinitions",
+		"crd":                      "customresourcedefinitions",
 	}
-	
+
 	// 检查映射表
 	if resource, ok := resourceMap[kindLower]; ok {
 		return resource
 	}
-	
+
 	// 如果没有找到，使用简单的复数化规则
 	if strings.HasSuffix(kindLower, "y") {
 		return strings.TrimSuffix(kindLower, "y") + "ies"
 	}
-	if strings.HasSuffix(kindLower, "s") || strings.HasSuffix(kindLower, "x") || 
-		strings.HasSuffix(kindLower, "z") || strings.HasSuffix(kindLower, "ch") || 
+	if strings.HasSuffix(kindLower, "s") || strings.HasSuffix(kindLower, "x") ||
+		strings.HasSuffix(kindLower, "z") || strings.HasSuffix(kindLower, "ch") ||
 		strings.HasSuffix(kindLower, "sh") {
 		return kindLower + "es"
 	}
@@ -541,21 +540,20 @@ func (e *K8sExecutor) pluralizeKind(kind string) string {
 // isClusterScopedResource 判断资源是否是集群级别的（非命名空间资源）
 func (e *K8sExecutor) isClusterScopedResource(kind string) bool {
 	clusterScopedKinds := map[string]bool{
-		"Namespace":              true,
-		"Node":                   true,
-		"PersistentVolume":       true,
-		"ClusterRole":           true,
-		"ClusterRoleBinding":     true,
-		"StorageClass":           true,
-		"CustomResourceDefinition": true,
-		"APIService":             true,
-		"MutatingWebhookConfiguration": true,
+		"Namespace":                      true,
+		"Node":                           true,
+		"PersistentVolume":               true,
+		"ClusterRole":                    true,
+		"ClusterRoleBinding":             true,
+		"StorageClass":                   true,
+		"CustomResourceDefinition":       true,
+		"APIService":                     true,
+		"MutatingWebhookConfiguration":   true,
 		"ValidatingWebhookConfiguration": true,
-		"PriorityClass":          true,
-		"CSIDriver":              true,
-		"CSINode":                true,
-		"VolumeAttachment":      true,
+		"PriorityClass":                  true,
+		"CSIDriver":                      true,
+		"CSINode":                        true,
+		"VolumeAttachment":               true,
 	}
 	return clusterScopedKinds[kind]
 }
-

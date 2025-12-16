@@ -1,6 +1,6 @@
-# Tiangong Deploy API 接口文档
+# Cloud UI API 接口文档
 
-本文档描述了 Tiangong Deploy 服务提供的核心 API 接口，供其他服务调用。
+本文档描述了 Cloud UI 服务提供的核心 API 接口，供其他服务调用。
 
 ## 基础信息
 
@@ -533,7 +533,7 @@ curl -X POST http://localhost:8080/api/v1/tasks \
 
 ## 4. 数据库执行接口
 
-Tiangong Deploy 支持多种数据库的执行操作，包括 MySQL、PostgreSQL、MongoDB、Elasticsearch、ClickHouse 和 Doris。所有数据库执行接口使用统一的接口格式，通过 `type` 字段区分不同的数据库类型。
+Cloud UI 支持多种数据库的执行操作，包括 MySQL、PostgreSQL、MongoDB、Elasticsearch、ClickHouse 和 Doris。所有数据库执行接口使用统一的接口格式，通过 `type` 字段区分不同的数据库类型。
 
 ### 通用请求格式
 

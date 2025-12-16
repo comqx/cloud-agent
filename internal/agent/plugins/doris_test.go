@@ -3,7 +3,7 @@ package plugins
 import (
 	"testing"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 func TestNewDorisExecutor(t *testing.T) {
@@ -57,11 +57,11 @@ func TestDorisExecutor_Execute_ExtendedTimeout(t *testing.T) {
 
 	// 测试默认超时时间是否被设置为 30 分钟
 	params := map[string]interface{}{}
-	
+
 	// Execute 方法会修改 params，添加超时配置
 	// 这里我们直接测试 Execute 方法是否会设置超时
 	_, err := exec.Execute("test-task", "SELECT 1", params, "", nil)
-	
+
 	// 检查 params 中是否设置了超时
 	if execOpts, ok := params["exec_options"].(map[string]interface{}); ok {
 		if timeout, ok := execOpts["timeout_ms"].(int); ok {
@@ -123,4 +123,3 @@ func TestDorisExecutor_Execute_EmptyCommand(t *testing.T) {
 		t.Error("Expected error for empty command")
 	}
 }
-

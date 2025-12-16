@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 func TestNewMySQLExecutor(t *testing.T) {
@@ -114,7 +114,7 @@ func TestMySQLExecutor_ExtractExecOptions(t *testing.T) {
 		expected execOptions
 	}{
 		{
-			name: "default options",
+			name:   "default options",
 			params: nil,
 			expected: execOptions{
 				TransBatchSize: 200,
@@ -280,7 +280,7 @@ func TestMySQLExecutor_Execute_Error(t *testing.T) {
 	// 注意：根据当前实现，processResponse 在错误时仍然返回结果字符串和 nil error
 	// 错误信息包含在结果字符串中
 	// 如果需要返回 error，需要修改 processResponse 的实现
-	
+
 	// 验证结果字符串包含错误信息
 	if result == "" {
 		t.Error("Expected error result message")
@@ -320,4 +320,3 @@ func TestMySQLExecutor_Cancel(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 }
-

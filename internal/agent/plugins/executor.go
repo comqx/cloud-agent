@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 // LogCallback 日志回调函数
@@ -13,4 +13,3 @@ type Executor interface {
 	Cancel(taskID string) error
 	Type() common.TaskType
 }
-

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 // goInceptionRequest goInception 请求结构
@@ -49,6 +49,7 @@ type MySQLExecutor struct {
 	connections    map[string]connectionInfo
 	config         map[string]interface{}
 	httpClient     *http.Client
+	validator      *SQLSecurityValidator // SQL 安全验证器
 }
 
 // connectionInfo 连接信息
@@ -66,6 +67,9 @@ func NewMySQLExecutor(config map[string]interface{}) *MySQLExecutor {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Minute,
 		},
+		// 默认不允许危险操作，启用严格模式
+		// 注意：goInception 本身也会进行 SQL 审核，这里是双重保护
+		validator: NewSQLSecurityValidator(false, true),
 	}
 
 	// 获取 goInception 服务地址
@@ -117,12 +121,12 @@ func (e *MySQLExecutor) GetDatabaseType() string {
 // Execute 执行 SQL（通过 goInception）
 func (e *MySQLExecutor) Execute(taskID string, command string, params map[string]interface{}, fileID string, logCallback LogCallback) (string, error) {
 	startTime := time.Now()
-	
+
 	// 如果提供了 fileID，优先从文件读取 SQL
 	if fileID != "" {
 		filePath, _ := params["file_path"].(string)
 		fileName, _ := params["file_name"].(string)
-		
+
 		fileSQL, err := ReadSQLFromFile(fileID, filePath, fileName, logCallback, taskID)
 		if err != nil {
 			return "", fmt.Errorf("failed to read SQL from file: %w", err)
@@ -131,9 +135,22 @@ func (e *MySQLExecutor) Execute(taskID string, command string, params map[string
 			command = fileSQL
 		}
 	}
-	
+
 	if command == "" {
 		return "", common.NewError("SQL command is empty (provide command or file_id)")
+	}
+
+	// 安全验证：在发送给 goInception 之前验证 SQL
+	if err := e.validator.ValidateSQL(command); err != nil {
+		if logCallback != nil {
+			logCallback(taskID, "error", fmt.Sprintf("SQL security validation failed: %v", err))
+		}
+		return "", fmt.Errorf("security validation failed: %w", err)
+	}
+
+	// 记录审计日志
+	if logCallback != nil {
+		logCallback(taskID, "audit", "SQL passed security validation, sending to goInception")
 	}
 
 	// 解析扩展参数
@@ -148,7 +165,7 @@ func (e *MySQLExecutor) Execute(taskID string, command string, params map[string
 
 	// 解析 exec_options
 	execOpts := e.extractExecOptions(params)
-	
+
 	// 是否备份（默认备份）
 	backup := "1"
 	if !execOpts.Backup {
@@ -445,5 +462,3 @@ func (e *MySQLExecutor) Cancel(taskID string) error {
 	// 可以通过 context 超时来控制
 	return nil
 }
-
-

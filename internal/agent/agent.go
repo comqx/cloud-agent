@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/agent/client"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/agent/executor"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/agent/client"
+	"github.com/cloud-agent/internal/agent/executor"
+	"github.com/cloud-agent/internal/common"
 )
 
 // Agent Agent 主程序

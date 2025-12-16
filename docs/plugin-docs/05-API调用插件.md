@@ -142,7 +142,7 @@ plugins:
     "body": {
       "text": "Deployment completed successfully!",
       "channel": "#deployments",
-      "username": "Tiangong Deploy Bot"
+      "username": "Cloud UI Bot"
     }
   }
 }

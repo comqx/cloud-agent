@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/agent/plugins"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/agent/plugins"
+	"github.com/cloud-agent/internal/common"
 )
 
 // Manager 执行器管理器

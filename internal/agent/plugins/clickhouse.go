@@ -9,7 +9,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 // ClickHouseExecutor ClickHouse 执行器
@@ -17,6 +17,7 @@ type ClickHouseExecutor struct {
 	config      map[string]interface{}
 	connections map[string]driver.Conn // 缓存动态创建的连接（基于配置哈希）
 	mu          sync.RWMutex
+	validator   *SQLSecurityValidator // SQL 安全验证器
 }
 
 // NewClickHouseExecutor 创建 ClickHouse 执行器
@@ -24,6 +25,8 @@ func NewClickHouseExecutor(config map[string]interface{}) *ClickHouseExecutor {
 	exec := &ClickHouseExecutor{
 		config:      config,
 		connections: make(map[string]driver.Conn),
+		// 默认不允许危险操作，启用严格模式
+		validator: NewSQLSecurityValidator(false, true),
 	}
 
 	// 初始化连接
@@ -213,7 +216,7 @@ func (e *ClickHouseExecutor) Execute(taskID string, command string, params map[s
 	if fileID != "" {
 		filePath, _ := params["file_path"].(string)
 		fileName, _ := params["file_name"].(string)
-		
+
 		fileSQL, err := ReadSQLFromFile(fileID, filePath, fileName, logCallback, taskID)
 		if err != nil {
 			return "", fmt.Errorf("failed to read SQL from file: %w", err)
@@ -308,6 +311,25 @@ func (e *ClickHouseExecutor) executeSQL(ctx context.Context, conn driver.Conn, c
 		return nil, common.NewError("no valid SQL statements found")
 	}
 
+	// 验证每个 SQL 语句
+	for i, stmt := range statements {
+		if strings.TrimSpace(stmt) == "" {
+			continue
+		}
+		if err := e.validator.ValidateSQL(stmt); err != nil {
+			errorMsg := fmt.Sprintf("Statement %d security validation failed: %v", i+1, err)
+			if logCallback != nil {
+				logCallback(taskID, "error", errorMsg)
+			}
+			return nil, fmt.Errorf("security validation failed for statement %d: %w", i+1, err)
+		}
+	}
+
+	// 记录审计日志
+	if logCallback != nil {
+		logCallback(taskID, "audit", fmt.Sprintf("Executing %d SQL statement(s) after security validation", len(statements)))
+	}
+
 	var totalRowsAffected int64
 	var results []string
 	var hasError bool
@@ -315,6 +337,11 @@ func (e *ClickHouseExecutor) executeSQL(ctx context.Context, conn driver.Conn, c
 	for i, stmt := range statements {
 		if strings.TrimSpace(stmt) == "" {
 			continue
+		}
+
+		// 记录执行的 SQL（用于审计）
+		if logCallback != nil {
+			logCallback(taskID, "audit", fmt.Sprintf("Executing statement %d: %s", i+1, stmt))
 		}
 
 		// 执行语句
@@ -427,4 +454,3 @@ func (e *ClickHouseExecutor) Close() error {
 
 	return nil
 }
-

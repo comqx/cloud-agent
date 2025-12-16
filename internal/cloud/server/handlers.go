@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/cloud-agent/internal/common"
 	"github.com/gin-gonic/gin"
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
 )
 
 // listAgents 列出所有 Agent

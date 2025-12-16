@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 	"github.com/gorilla/websocket"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -62,7 +62,7 @@ func (c *Client) Connect() error {
 
 	// 创建 WebSocket Dialer
 	dialer := websocket.DefaultDialer
-	
+
 	// 如果是 WSS，配置 TLS
 	if u.Scheme == "wss" {
 		// 检查是否跳过证书验证（通过环境变量配置）
@@ -72,12 +72,12 @@ func (c *Client) Connect() error {
 				skipVerify = parsed
 			}
 		}
-		
+
 		// 如果未设置环境变量，默认跳过验证（适用于自签证书）
 		if os.Getenv("WS_SKIP_VERIFY") == "" {
 			skipVerify = true
 		}
-		
+
 		if skipVerify {
 			log.Println("WSS: Skipping certificate verification (for self-signed certificates)")
 			dialer.TLSClientConfig = &tls.Config{

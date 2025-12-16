@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 )
@@ -20,6 +20,7 @@ type ESExecutor struct {
 	config      map[string]interface{}
 	connections map[string]*elasticsearch.Client // 缓存动态创建的连接（基于配置哈希）
 	mu          sync.RWMutex
+	validator   *SQLSecurityValidator // 操作安全验证器
 }
 
 // NewESExecutor 创建 Elasticsearch 执行器
@@ -27,6 +28,8 @@ func NewESExecutor(config map[string]interface{}) *ESExecutor {
 	exec := &ESExecutor{
 		config:      config,
 		connections: make(map[string]*elasticsearch.Client),
+		// 默认启用严格模式
+		validator: NewSQLSecurityValidator(false, true),
 	}
 
 	// 初始化连接
@@ -280,12 +283,30 @@ func (e *ESExecutor) executeDSL(ctx context.Context, client *elasticsearch.Clien
 		return nil, fmt.Errorf("invalid JSON format: %w", err)
 	}
 
+	// 安全验证
+	if err := e.validator.ValidateElasticsearchOperation(operation); err != nil {
+		if logCallback != nil {
+			logCallback(taskID, "error", fmt.Sprintf("Operation security validation failed: %v", err))
+		}
+		return nil, fmt.Errorf("security validation failed: %w", err)
+	}
+
+	// 记录审计日志
+	if logCallback != nil {
+		logCallback(taskID, "audit", "Elasticsearch operation passed security validation")
+	}
+
 	// 获取操作类型
 	opType, _ := operation["operation"].(string)
 	index, _ := operation["index"].(string)
 
 	if index == "" {
 		return nil, common.NewError("index is required")
+	}
+
+	// 记录操作（用于审计）
+	if logCallback != nil {
+		logCallback(taskID, "audit", fmt.Sprintf("Executing operation: %s on index: %s", opType, index))
 	}
 
 	switch opType {
@@ -565,4 +586,3 @@ func (e *ESExecutor) Close() error {
 	// Elasticsearch 客户端不需要显式关闭
 	return nil
 }
-

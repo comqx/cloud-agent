@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 func TestNewMongoExecutor(t *testing.T) {
@@ -153,7 +153,7 @@ func TestMongoExecutor_ExecuteOperations_InvalidJSON(t *testing.T) {
 func TestMongoExecutor_ExecuteOperations_ValidJSON(t *testing.T) {
 	// 测试有效的 JSON 格式（单个操作）
 	operation := map[string]interface{}{
-		"operation": "insert",
+		"operation":  "insert",
 		"collection": "users",
 		"documents": []interface{}{
 			map[string]interface{}{
@@ -163,7 +163,7 @@ func TestMongoExecutor_ExecuteOperations_ValidJSON(t *testing.T) {
 	}
 
 	jsonData, _ := json.Marshal(operation)
-	
+
 	// 注意：实际执行需要真实的 MongoDB 连接
 	// 这里只测试 JSON 解析
 	var parsed map[string]interface{}
@@ -185,9 +185,9 @@ func TestMongoExecutor_Execute_NoDatabase(t *testing.T) {
 	exec := NewMongoExecutor(nil)
 
 	operation := map[string]interface{}{
-		"operation": "insert",
+		"operation":  "insert",
 		"collection": "users",
-		"documents": []interface{}{},
+		"documents":  []interface{}{},
 	}
 	jsonData, _ := json.Marshal(operation)
 
@@ -203,4 +203,3 @@ func TestMongoExecutor_Cancel(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 }
-

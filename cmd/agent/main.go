@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/agent"
+	"github.com/cloud-agent/internal/agent"
 	"github.com/google/uuid"
 )
 

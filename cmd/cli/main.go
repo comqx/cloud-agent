@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tiangong-deploy/tiangong-deploy/internal/common"
+	"github.com/cloud-agent/internal/common"
 )
 
 var (
@@ -306,4 +306,3 @@ func getTask(taskID string) (*common.Task, error) {
 
 	return &task, nil
 }
-

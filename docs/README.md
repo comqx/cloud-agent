@@ -1,6 +1,6 @@
-# Tiangong Deploy 文档
+# Cloud UI 文档
 
-欢迎查阅 Tiangong Deploy 项目文档！
+欢迎查阅 Cloud UI 项目文档！
 
 ## 📚 文档导航
 
