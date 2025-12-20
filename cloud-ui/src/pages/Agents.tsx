@@ -24,14 +24,20 @@ export default function Agents() {
     setLoading(true);
     try {
       const res = await agentAPI.list();
+      console.log('[DEBUG] Agents page loadAgents response:', res);
+      console.log('[DEBUG] Agents page res.data:', res.data);
+      // 处理响应数据：可能是数组，也可能被包装在 data 中
+      const agentsData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      console.log('[DEBUG] Agents page agentsData:', agentsData);
       // 确保 tags 字段是数组
-      const agentsWithTags = res.data.map(agent => ({
+      const agentsWithTags = agentsData.map((agent: Agent) => ({
         ...agent,
         tags: Array.isArray(agent.tags) ? agent.tags : (agent.tags ? [agent.tags] : [])
       }));
       setAgents(agentsWithTags);
     } catch (error: any) {
-      message.error('加载 Agent 列表失败: ' + error.message);
+      console.error('[ERROR] Agents page loadAgents failed:', error);
+      message.error('加载 Agent 列表失败: ' + (error.message || '未知错误'));
     } finally {
       setLoading(false);
     }

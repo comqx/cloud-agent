@@ -46,9 +46,14 @@ export default function Tasks() {
   const loadAgents = async () => {
     try {
       const res = await agentAPI.list();
-      setAgents(res.data.filter(a => a.status === 'online'));
+      console.log('[DEBUG] loadAgents response:', res);
+      console.log('[DEBUG] loadAgents res.data:', res.data);
+      const agentsData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      console.log('[DEBUG] loadAgents agentsData:', agentsData);
+      setAgents(agentsData.filter(a => a.status === 'online'));
     } catch (error: any) {
-      message.error('加载 Agent 列表失败');
+      console.error('[ERROR] loadAgents failed:', error);
+      message.error('加载 Agent 列表失败: ' + (error.message || '未知错误'));
     }
   };
 
