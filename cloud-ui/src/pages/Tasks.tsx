@@ -16,11 +16,40 @@ import {
   Divider,
 } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { Resizable } from 'react-resizable';
 import { taskAPI, agentAPI, fileAPI, Task, Agent, File as FileType } from '../services/api';
 import LogViewer from '../components/LogViewer';
 
 const { TextArea } = Input;
 const { Option } = Select;
+
+const ResizableTitle = (props: any) => {
+  const { onResize, width, ...restProps } = props;
+
+  if (!width) {
+    return <th {...restProps} />;
+  }
+
+  return (
+    // @ts-ignore
+    <Resizable
+      width={width}
+      height={0}
+      handle={
+        <span
+          className="react-resizable-handle"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        />
+      }
+      onResize={onResize}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      <th {...restProps} />
+    </Resizable>
+  );
+};
 
 export default function Tasks() {
   const [form] = Form.useForm();
@@ -37,6 +66,28 @@ export default function Tasks() {
   const [helmChartFile, setHelmChartFile] = useState<any>(null);
   const [helmValuesFile, setHelmValuesFile] = useState<any>(null);
 
+  // 监听选中的 Agent ID 列表
+  const selectedAgentIds = Form.useWatch('agent_ids', form);
+
+  // 表格列宽状态
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    id: 200,
+    agent_id: 150,
+    type: 100,
+    status: 100,
+    sync_mode: 120,
+    command: 300,
+    created_at: 180,
+    action: 200,
+  });
+
+  const handleResize = (key: string) => (_: any, { size }: any) => {
+    setColumnWidths((prev) => ({
+      ...prev,
+      [key]: size.width,
+    }));
+  };
+
   useEffect(() => {
     loadAgents();
     loadFiles();
@@ -50,9 +101,9 @@ export default function Tasks() {
       const res = await agentAPI.list();
       console.log('[DEBUG] loadAgents response:', res);
       console.log('[DEBUG] loadAgents res.data:', res.data);
-      const agentsData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const agentsData: Agent[] = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       console.log('[DEBUG] loadAgents agentsData:', agentsData);
-      setAgents(agentsData.filter(a => a.status === 'online'));
+      setAgents(agentsData.filter((a: Agent) => a.status === 'online'));
     } catch (error: any) {
       console.error('[ERROR] loadAgents failed:', error);
       message.error('加载 Agent 列表失败: ' + (error.message || '未知错误'));
@@ -97,7 +148,8 @@ export default function Tasks() {
   const loadTasks = async () => {
     try {
       const res = await taskAPI.list({ limit: 50 });
-      setTasks(res.data);
+      const tasksData: Task[] = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setTasks(tasksData);
     } catch (error: any) {
       // 静默失败，避免频繁提示
     }
@@ -306,27 +358,27 @@ export default function Tasks() {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      width: 200,
+      width: columnWidths.id,
       render: (text: string) => <code>{text.substring(0, 8)}...</code>,
     },
     {
       title: 'Agent',
       dataIndex: 'agent_id',
       key: 'agent_id',
-      width: 150,
+      width: columnWidths.agent_id,
       render: (text: string) => <code>{text.substring(0, 8)}...</code>,
     },
     {
       title: '类型',
       dataIndex: 'type',
       key: 'type',
-      width: 100,
+      width: columnWidths.type,
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: columnWidths.status,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           pending: 'default',
@@ -341,7 +393,7 @@ export default function Tasks() {
     {
       title: '执行模式',
       key: 'sync_mode',
-      width: 120,
+      width: columnWidths.sync_mode,
       render: (_: any, record: Task) => {
         let isSync = false;
         let timeout = 60;
@@ -355,16 +407,12 @@ export default function Tasks() {
             if (params && typeof params === 'object' && params !== null) {
               // 检查 _sync 字段（可能是 boolean true 或字符串 "true"）
               const syncValue = params._sync;
-              console.log('[DEBUG] Task params:', record.id, 'params:', params, '_sync:', syncValue, 'type:', typeof syncValue);
               isSync = syncValue === true || syncValue === 'true' || syncValue === 1;
               timeout = params._timeout || 60;
             }
           } catch (e) {
             // 解析失败，默认为异步
-            console.warn('Failed to parse task params:', e, record.params);
           }
-        } else {
-          console.log('[DEBUG] Task params is empty:', record.id);
         }
         
         return (
@@ -378,19 +426,20 @@ export default function Tasks() {
       title: '命令',
       dataIndex: 'command',
       key: 'command',
+      width: columnWidths.command,
       ellipsis: true,
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 180,
+      width: columnWidths.created_at,
       render: (text: string) => new Date(text).toLocaleString(),
     },
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: columnWidths.action,
       render: (_: any, record: Task) => (
         <Space>
           <Button size="small" onClick={() => handleViewLogs(record.id)}>
@@ -413,6 +462,14 @@ export default function Tasks() {
       ),
     },
   ];
+
+  const mergedColumns = columns.map((col) => ({
+    ...col,
+    onHeaderCell: (column: any) => ({
+      width: column.width,
+      onResize: handleResize(column.key as string),
+    }),
+  }));
 
   return (
     <>
@@ -464,60 +521,34 @@ export default function Tasks() {
               optionFilterProp="children"
               allowClear
               maxTagCount="responsive"
-              dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
               dropdownRender={(menu) => {
-                const filtered = getFilteredAgents();
-                const filteredIds = filtered.map(a => a.id);
-                const currentValues: string[] = form.getFieldValue('agent_ids') || [];
-                const selectedInCluster = currentValues.filter(id => filteredIds.includes(id));
-                const allChecked = filteredIds.length > 0 && selectedInCluster.length === filteredIds.length;
-                const indeterminate = selectedInCluster.length > 0 && !allChecked;
+                const currentFilteredAgents = getFilteredAgents();
+                const allAgentIds = currentFilteredAgents.map(a => a.id);
+                const currentSelected = selectedAgentIds || [];
+                const selectedInCurrent = currentSelected.filter((id: string) => allAgentIds.includes(id));
+                const allSelected = allAgentIds.length > 0 && selectedInCurrent.length === allAgentIds.length;
+                const indeterminate = selectedInCurrent.length > 0 && selectedInCurrent.length < allAgentIds.length;
 
                 return (
                   <>
-                    <div style={{ padding: '8px 12px' }}>
+                    <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
                       <Checkbox
-                        checked={allChecked}
+                        checked={allSelected}
                         indeterminate={indeterminate}
-                        disabled={filteredIds.length === 0}
                         onChange={(e) => {
-                          const currentValues: string[] = form.getFieldValue('agent_ids') || [];
-                          const otherClustersValues = currentValues.filter(id => !filteredIds.includes(id));
-
                           if (e.target.checked) {
-                            form.setFieldsValue({ agent_ids: [...otherClustersValues, ...filteredIds] });
+                            form.setFieldValue('agent_ids', allAgentIds);
                           } else {
-                            form.setFieldsValue({ agent_ids: otherClustersValues });
+                            form.setFieldValue('agent_ids', []);
                           }
                         }}
                       >
-                        全选（{filteredIds.length} 个）
+                        全选（{allAgentIds.length} 个）
                       </Checkbox>
                     </div>
-                    <Divider style={{ margin: 0 }} />
+                    <Divider style={{ margin: '0' }} />
                     {menu}
                   </>
-                );
-              }}
-              tagRender={(props) => {
-                return (
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      margin: '2px 4px',
-                      padding: '2px 8px',
-                      background: '#f0f0f0',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    {props.label}
-                    <span
-                      onClick={props.onClose}
-                      style={{ marginLeft: '4px', cursor: 'pointer' }}
-                    >
-                      ×
-                    </span>
-                  </span>
                 );
               }}
               filterOption={(input, option) => {
@@ -828,10 +859,17 @@ export default function Tasks() {
 
       <Card title="任务列表">
         <Table
-          columns={columns}
+          bordered
+          components={{
+            header: {
+              cell: ResizableTitle,
+            },
+          }}
+          columns={mergedColumns}
           dataSource={tasks}
           rowKey="id"
           pagination={{ pageSize: 20 }}
+          scroll={{ x: 'max-content' }}
         />
       </Card>
 

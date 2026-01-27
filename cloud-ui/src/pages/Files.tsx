@@ -42,7 +42,8 @@ export default function Files() {
   const loadAgents = async () => {
     try {
       const res = await agentAPI.list();
-      setAgents(res.data.filter(a => a.status === 'online'));
+      const agentsData: Agent[] = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setAgents(agentsData.filter((a: Agent) => a.status === 'online'));
     } catch (error: any) {
       message.error('加载 Agent 列表失败');
     }

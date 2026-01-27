@@ -20,7 +20,8 @@ export default function History() {
     setLoading(true);
     try {
       const res = await taskAPI.list({ limit: 100 });
-      setTasks(res.data);
+      const tasksData: Task[] = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setTasks(tasksData);
     } catch (error: any) {
       message.error('加载任务列表失败');
     } finally {

@@ -57,10 +57,10 @@ export interface File {
 
 // Agent API
 export const agentAPI = {
-  list: () => api.get<Agent[]>('/agents'),
-  get: (id: string) => api.get<Agent>(`/agents/${id}`),
+  list: () => api.get<any>('/agents'),
+  get: (id: string) => api.get<any>(`/agents/${id}`),
   getStatus: (id: string) => api.get<{ status: string }>(`/agents/${id}/status`),
-  update: (id: string, data: Partial<Agent>) => api.put<Agent>(`/agents/${id}`, data),
+  update: (id: string, data: Partial<Agent>) => api.put<any>(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),
 };
 
@@ -74,12 +74,12 @@ export const taskAPI = {
     file_id?: string;
     sync?: boolean;
     timeout?: number;
-  }) => api.post<Task>('/tasks', data),
+  }) => api.post<any>('/tasks', data),
   list: (params?: { agent_id?: string; limit?: number; offset?: number }) =>
-    api.get<Task[]>('/tasks', { params }),
-  get: (id: string) => api.get<Task>(`/tasks/${id}`),
+    api.get<any>('/tasks', { params }),
+  get: (id: string) => api.get<any>(`/tasks/${id}`),
   getLogs: (id: string, limit?: number) =>
-    api.get<Log[]>(`/tasks/${id}/logs`, { params: { limit } }),
+    api.get<any>(`/tasks/${id}/logs`, { params: { limit } }),
   cancel: (id: string) => api.post(`/tasks/${id}/cancel`),
 };
 
@@ -88,13 +88,13 @@ export const fileAPI = {
   upload: (file: globalThis.File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<File>('/files', formData, {
+    return api.post<any>('/files', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
   list: (params?: { limit?: number; offset?: number }) =>
-    api.get<File[]>('/files', { params }),
-  get: (id: string) => api.get<File>(`/files/${id}`),
+    api.get<any>('/files', { params }),
+  get: (id: string) => api.get<any>(`/files/${id}`),
   download: (id: string) => api.get(`/files/${id}/download`, { responseType: 'blob' }),
   distribute: (id: string, data: { agent_ids: string[]; path?: string }) =>
     api.post(`/files/${id}/distribute`, data),

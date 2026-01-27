@@ -27,7 +27,7 @@ export default function Agents() {
       console.log('[DEBUG] Agents page loadAgents response:', res);
       console.log('[DEBUG] Agents page res.data:', res.data);
       // 处理响应数据：可能是数组，也可能被包装在 data 中
-      const agentsData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const agentsData: Agent[] = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       console.log('[DEBUG] Agents page agentsData:', agentsData);
       // 确保 tags 字段是数组
       const agentsWithTags = agentsData.map((agent: Agent) => ({
