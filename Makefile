@@ -15,8 +15,9 @@ IMAGE_CLOUD = $(DOCKER_REGISTRY)/$(DOCKER_NAMESPACE)/cloud-agent-cloud:$(DOCKER_
 IMAGE_AGENT = $(DOCKER_REGISTRY)/$(DOCKER_NAMESPACE)/cloud-agent-agent:$(DOCKER_TAG)
 IMAGE_UI = $(DOCKER_REGISTRY)/$(DOCKER_NAMESPACE)/cloud-agent-ui:$(DOCKER_TAG)
 
-# Buildx builder 名称
-BUILDER_NAME = cloud-agent-builder
+# Buildx builder 名称（建议使用 Docker Desktop 自带的 `desktop-linux`，可复用其代理/网络）
+# 例如：make docker-push-all BUILDER_NAME=desktop-linux
+BUILDER_NAME ?= desktop-linux
 
 # 构建目标
 build: cloud agent cli
@@ -58,12 +59,14 @@ docker-logs:
 # 初始化 buildx（支持多架构）
 docker-buildx-setup:
 	@echo "Setting up Docker buildx..."
-	@if ! docker buildx ls | grep -q $(BUILDER_NAME); then \
-		docker buildx create --name $(BUILDER_NAME) --use --bootstrap; \
-	else \
+	@# 优先使用已存在的 builder（例如 Docker Desktop 自带的 `desktop-linux`），避免自建 buildkit 容器网络导致无法访问 `auth.docker.io`
+	@if docker buildx inspect $(BUILDER_NAME) >/dev/null 2>&1; then \
 		docker buildx use $(BUILDER_NAME); \
+	else \
+		echo "Builder $(BUILDER_NAME) 不存在，创建 docker-container builder 作为兜底..."; \
+		docker buildx create --name $(BUILDER_NAME) --use --bootstrap; \
 	fi
-	@docker buildx inspect --bootstrap
+	@docker buildx inspect --bootstrap | cat
 
 # 单独构建镜像（单架构，本地使用）
 docker-build-cloud:

@@ -2,60 +2,45 @@ version: '3.8'
 
 services:
   cloud:
-    build:
-      context: ..
-      dockerfile: Dockerfile.cloud
-    ports:
-      - "8080:8080"
+    image: docker.io/comqx/cloud-agent-cloud:latest
+    network_mode: host
+    pull_policy: always
     volumes:
-      - cloud-data:/app/data
-      - cloud-files:/app/data/files
+      - /data/cloud:/app/data
+      - /data/cloud-files:/app/data/files
+      # 证书目录（用于 HTTPS/WSS）
+      - /data/certs:/app/certs:ro
     environment:
-      - DB_PATH=/app/data/cloud.db
-      - FILE_STORAGE=/app/data/files
+      # 与 Dockerfile.cloud 中的启动参数保持一致
+      - CLOUD_ADDR=:8443
+      - CLOUD_DB=/app/data/cloud.db
+      - CLOUD_STORAGE=/app/data/files
+      - CLOUD_CERT=/app/certs/server.crt
+      - CLOUD_KEY=/app/certs/server.key
     restart: unless-stopped
-    networks:
-      - tiangong-deploy
 
   agent:
-    build:
-      context: ..
-      dockerfile: Dockerfile.agent
-    depends_on:
-      - cloud
+    image: docker.io/comqx/cloud-agent-agent:latest
+    network_mode: host
+    pull_policy: always
     environment:
-      - CLOUD_URL=http://cloud:8080
+      # 连接 Cloud 的 WSS（如用自签证书，建议开启跳过校验；如用受信任证书，建议设为 false）
+      - CLOUD_URL=wss://localhost:8443
+      - WS_SKIP_VERIFY=true
       - AGENT_ID=${AGENT_ID:-}
-      - AGENT_NAME=${AGENT_NAME:-agent-1}
-      - K8S_CLUSTER_NAME=${K8S_CLUSTER_NAME:-}
+      - AGENT_NAME=local
+      - K8S_CLUSTER_NAME=local
     restart: unless-stopped
-    networks:
-      - tiangong-deploy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # 如果需要执行 Docker 命令
-      - agent-data:/app/data
+      - /data/agent:/app/data
 
   ui:
-    build:
-      context: ..
-      dockerfile: Dockerfile.ui
-    ports:
-      - "80:80"
-    depends_on:
-      - cloud
+    image: docker.io/comqx/cloud-agent-ui:latest
+    network_mode: host
+    pull_policy: always
     environment:
-      - CLOUD_API_URL=http://cloud:8080
-      - CLOUD_WS_URL=http://cloud:8080
+      # UI 容器内 Nginx 反代到 Cloud（Cloud 若启用 TLS，这里用 https://）
+      - CLOUD_API_URL=https://localhost:8443
+      - CLOUD_WS_URL=https://localhost:8443
     restart: unless-stopped
-    networks:
-      - tiangong-deploy
-
-volumes:
-  cloud-data:
-  cloud-files:
-  agent-data:
-
-
-networks:
-  tiangong-deploy:
-    driver: bridge

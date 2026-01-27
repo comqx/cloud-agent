@@ -3,6 +3,13 @@ FROM golang:bookworm AS go-builder
 
 WORKDIR /app
 
+# 安装 CGO 依赖（gcc 和 sqlite3 开发库）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # 复制 go mod 文件
 COPY go.mod go.sum ./
 RUN go mod download
@@ -10,18 +17,17 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
-# 构建 Cloud 服务（使用纯 Go SQLite 驱动）
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -tags sqlite_omit_load_extension \
+# 构建 Cloud 服务（启用 CGO，使用原生 SQLite）
+RUN CGO_ENABLED=1 GOOS=linux go build \
     -o cloud ./cmd/cloud
 
 # 阶段2: 运行阶段
-FROM debian:bookworm-slim
+FROM hub.glodon.com/glodon-pub/debian:stable-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
-    sqlite3 \
+    libsqlite3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
