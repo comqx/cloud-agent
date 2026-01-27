@@ -1,20 +1,32 @@
 import { useState, useEffect } from 'react';
 import { Card, Table, Tag, Button, message, Modal, Space } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { taskAPI, Task } from '../services/api';
+import { taskAPI, agentAPI, Task, Agent } from '../services/api';
 import LogViewer from '../components/LogViewer';
 
 export default function History() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
 
   useEffect(() => {
+    loadAgents();
     loadTasks();
     const interval = setInterval(loadTasks, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadAgents = async () => {
+    try {
+      const res = await agentAPI.list();
+      const agentsData: Agent[] = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setAgents(agentsData);
+    } catch (error: any) {
+      // 静默失败
+    }
+  };
 
   const loadTasks = async () => {
     setLoading(true);
@@ -74,14 +86,18 @@ export default function History() {
       dataIndex: 'id',
       key: 'id',
       width: 200,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
+      render: (text: string) => <div style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>{text}</div>,
     },
     {
       title: 'Agent',
       dataIndex: 'agent_id',
       key: 'agent_id',
       width: 150,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
+      render: (text: string) => {
+        const agent = agents.find(a => a.id === text);
+        const display = agent ? `${agent.hostname} (${agent.ip})` : text;
+        return <div style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>{display}</div>;
+      },
     },
     {
       title: '类型',

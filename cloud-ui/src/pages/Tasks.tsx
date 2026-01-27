@@ -359,14 +359,18 @@ export default function Tasks() {
       dataIndex: 'id',
       key: 'id',
       width: columnWidths.id,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
+      render: (text: string) => <div style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>{text}</div>,
     },
     {
       title: 'Agent',
       dataIndex: 'agent_id',
       key: 'agent_id',
       width: columnWidths.agent_id,
-      render: (text: string) => <code>{text.substring(0, 8)}...</code>,
+      render: (text: string) => {
+        const agent = agents.find(a => a.id === text);
+        const display = agent ? `${agent.hostname} (${agent.ip})` : text;
+        return <div style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>{display}</div>;
+      },
     },
     {
       title: '类型',
@@ -518,9 +522,13 @@ export default function Tasks() {
               disabled={!selectedCluster && getClusters().length > 0}
               mode="multiple"
               showSearch
+              optionLabelProp="label"
               optionFilterProp="children"
               allowClear
-              maxTagCount="responsive"
+              value={selectedAgentIds || []}
+              onChange={(values) => {
+                form.setFieldValue('agent_ids', values);
+              }}
               dropdownRender={(menu) => {
                 const currentFilteredAgents = getFilteredAgents();
                 const allAgentIds = currentFilteredAgents.map(a => a.id);
@@ -531,15 +539,26 @@ export default function Tasks() {
 
                 return (
                   <>
-                    <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center' }}>
+                    <div 
+                      style={{ padding: '8px 12px', display: 'flex', alignItems: 'center' }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
                       <Checkbox
                         checked={allSelected}
                         indeterminate={indeterminate}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            form.setFieldValue('agent_ids', allAgentIds);
+                            // 保留已选中的非当前集群的 agent（如果需要跨集群多选），或者直接覆盖
+                            // 这里假设是简单的全选当前列表
+                            const newSelected = Array.from(new Set([...currentSelected, ...allAgentIds]));
+                            form.setFieldValue('agent_ids', newSelected);
                           } else {
-                            form.setFieldValue('agent_ids', []);
+                            // 取消全选：移除当前列表中的 ID
+                            const newSelected = currentSelected.filter((id: string) => !allAgentIds.includes(id));
+                            form.setFieldValue('agent_ids', newSelected);
                           }
                         }}
                       >
@@ -563,7 +582,7 @@ export default function Tasks() {
               }}
             >
               {getFilteredAgents().map((agent) => (
-                <Option key={agent.id} value={agent.id}>
+                <Option key={agent.id} value={agent.id} label={agent.hostname}>
                   <span>{agent.hostname}</span>
                   {agent.env && <span style={{ color: '#999', marginLeft: '8px' }}>({agent.env})</span>}
                   {agent.ip && <span style={{ color: '#999', marginLeft: '8px', fontSize: '12px' }}>{agent.ip}</span>}
