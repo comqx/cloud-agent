@@ -1,0 +1,53 @@
+---
+description: 
+alwaysApply: true
+enabled: true
+updatedAt: 2026-01-27T05:57:34.538Z
+provider: 
+---
+
+### 适用范围
+本规则适用于仓库 `cloud-agent` 的所有代码与配置：Go 后端（`cmd/`、`internal/`）、前端 UI（`cloud-ui/`）、部署（`deployments/`、`Dockerfile.*`）、脚本（`scripts/`）与文档（`docs/`）。
+
+### 项目结构与边界
+- **后端入口**：`cmd/cloud`（Cloud 控制面）、`cmd/agent`（Agent 执行面）、`cmd/cli`（CLI）。
+- **核心逻辑**：`internal/cloud/*`（API/WebSocket/任务/存储）、`internal/agent/*`（连接/执行器/插件/安全）、`internal/common/*`（协议/模型/WS 封装）。
+- **前端 UI**：`cloud-ui/` 为 Vite + React + TS（Ant Design）。
+- **部署**：Docker Compose `deployments/docker-compose.yml`，Helm Chart `deployments/helm/*`。
+
+### 代码改动原则
+- **优先最小改动**：避免大范围重构；需要重构时先给出影响面清单（涉及 API、协议、配置、部署文件）。
+- **保持兼容**：
+  - WebSocket 路径与协议保持兼容（默认 `GET /ws`；`agent` 端支持 `http/https` 自动转 `ws/wss` 的逻辑不要破坏）。
+  - 现有环境变量与配置项保持兼容（例如 `WS_SKIP_VERIFY`、`K8S_CLUSTER_NAME`、`CLUSTER_NAME` 等）。
+- **明确分层**：
+  - `internal/common` 放跨端共享的协议与模型，不放业务依赖（例如不引入 `gin` 或具体插件依赖）。
+  - `internal/agent/plugins` 专注任务执行实现；配置解析/选择逻辑放在 `internal/agent/executor`。
+
+### Go 代码规范（重点）
+- **错误处理**：返回包含上下文的错误（`fmt.Errorf("...: %w", err)`），日志与错误不要重复表达同一信息。
+- **上下文**：对外部 IO（网络/数据库/文件）优先带 `context.Context`；对超时/取消要有明确策略。
+- **并发与资源**：goroutine 必须可停止（`done`、context 取消、ticker stop）；连接/文件必须 `Close()`。
+- **日志**：面向运维可观测性，日志要可搜索（包含 taskID/agentID 等关键字段）；避免打印敏感信息。
+
+### 安全与“可执行系统”约束
+本项目的 Agent 具备“远程执行”能力，任何改动都必须遵守：
+- **默认安全不降低**：不要扩大默认命令允许范围；不要新增默认开放端口；不要把校验逻辑从“拒绝”改为“放行”。
+- **危险操作要显式**：涉及命令执行、文件删除、K8s 资源删除、SQL 执行的改动，必须：
+  - 给出风险说明与回滚路径；
+  - 增加或更新审计日志字段（若适用）。
+- **TLS/WSS**：自签证书场景存在，变更 TLS 行为要确保可配置并保持向后兼容。
+
+### 前端（`cloud-ui/`）规范
+- **接口封装**：API/WS 访问统一走 `cloud-ui/src/services/*`；页面不要散落 `fetch/axios`。
+- **类型**：服务返回与页面状态尽量以 `cloud-ui/src/types/*` 为单一来源。
+- **构建与校验**：改动后应确保 `npm run build` 与 `npm run lint` 可通过。
+
+### 构建/运行（默认命令）
+- **Go**：`make build`（或 `go test ./...`）。
+- **UI**：`make cloud-ui`（或 `cd cloud-ui && npm run build`）。
+- **本地一键**：`make docker-up` / `make docker-down`。
+
+### 变更交付要求
+- 改动涉及 `deployments/`、`Dockerfile.*`、`configs/` 时，同步更新对应默认值/注释，确保可部署。
+- 新增配置项要有：默认值、用途说明、示例（优先落到现有 `configs/*.yaml` 或部署模板）。

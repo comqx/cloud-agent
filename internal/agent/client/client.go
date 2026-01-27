@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cloud-agent/internal/common"
@@ -215,25 +217,93 @@ func (c *Client) reconnect() {
 	}
 }
 
+// firstIPv4FromString 从字符串里提取第一个 IPv4。
+// 支持空格/逗号分隔（例如 "10.0.0.1,127.0.0.1" 或 "10.0.0.1 127.0.0.1"）。
+func firstIPv4FromString(s string) (string, bool) {
+	parts := strings.FieldsFunc(strings.TrimSpace(s), func(r rune) bool {
+		return r == ' ' || r == '\t' || r == ',' || r == ';'
+	})
+	for _, p := range parts {
+		ip := net.ParseIP(strings.TrimSpace(p))
+		if ip == nil {
+			continue
+		}
+		v4 := ip.To4()
+		if v4 == nil {
+			continue
+		}
+		return v4.String(), true
+	}
+	return "", false
+}
+
+// getLocalIPv4FromFibTrie 从 /proc/net/fib_trie 尝试解析本机 IPv4（在某些精简容器里比 net.Interfaces 更稳）。
+func getLocalIPv4FromFibTrie() string {
+	f, err := os.Open("/proc/net/fib_trie")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	lastCandidate := ""
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "|-- ") {
+			cand := strings.TrimSpace(strings.TrimPrefix(line, "|-- "))
+			cand = strings.Fields(cand)[0]
+			if ip := net.ParseIP(cand); ip != nil && ip.To4() != nil {
+				lastCandidate = cand
+			} else {
+				lastCandidate = ""
+			}
+			continue
+		}
+
+		// fib_trie 里会出现：
+		// |-- 10.2.0.13
+		//    /32 host LOCAL
+		if lastCandidate != "" && strings.Contains(line, "/32 host LOCAL") {
+			ip := net.ParseIP(lastCandidate)
+			if ip != nil && ip.To4() != nil && !ip.IsLoopback() && lastCandidate != "0.0.0.0" {
+				return lastCandidate
+			}
+			lastCandidate = ""
+		}
+	}
+	return ""
+}
+
 // getLocalIP 获取本地 IP（优先获取节点 IP）
 func (c *Client) getLocalIP() string {
-	// 1. 优先从环境变量获取（Kubernetes 环境）
-	// K8s Pod 可以通过环境变量获取节点 IP 或 Pod IP
-	if nodeIP := os.Getenv("NODE_IP"); nodeIP != "" && nodeIP != "127.0.0.1" {
-		return nodeIP
-	}
-	if hostIP := os.Getenv("HOST_IP"); hostIP != "" && hostIP != "127.0.0.1" {
-		return hostIP
-	}
-	if podIP := os.Getenv("POD_IP"); podIP != "" && podIP != "127.0.0.1" {
-		// 如果使用 hostNetwork，Pod IP 就是节点 IP
-		// 否则，尝试通过 Kubernetes API 查询节点 IP
-		if os.Getenv("HOST_NETWORK") != "true" {
-			if nodeIP := c.getNodeIPFromK8s(); nodeIP != "" {
-				return nodeIP
-			}
+	// 0. 最优先：如果显式配置了 NODE_IP，就直接使用（按用户意图）。
+	// 例如在 K8s 可通过 downward API 把 spec.nodeName 对应的 hostIP 注入到 NODE_IP。
+	if v := strings.TrimSpace(os.Getenv("NODE_IP")); v != "" {
+		if ip, ok := firstIPv4FromString(v); ok {
+			return ip
 		}
-		return podIP
+		// 兜底：即使解析失败也返回原值，避免误判为空
+		return v
+	}
+
+	// 1. 其他环境变量（Kubernetes 环境）
+	// K8s Pod 可以通过环境变量获取节点 IP 或 Pod IP
+	if hostIP := os.Getenv("HOST_IP"); strings.TrimSpace(hostIP) != "" {
+		if ip, ok := firstIPv4FromString(hostIP); ok && ip != "127.0.0.1" {
+			return ip
+		}
+	}
+	if podIP := os.Getenv("POD_IP"); strings.TrimSpace(podIP) != "" {
+		if ip, ok := firstIPv4FromString(podIP); ok && ip != "127.0.0.1" {
+			// 如果使用 hostNetwork，Pod IP 就是节点 IP
+			// 否则，尝试通过 Kubernetes API 查询节点 IP
+			if os.Getenv("HOST_NETWORK") != "true" {
+				if nodeIP := c.getNodeIPFromK8s(); nodeIP != "" {
+					return nodeIP
+				}
+			}
+			return ip
+		}
 	}
 
 	// 2. 尝试通过 Kubernetes API 查询节点 IP（如果在 K8s 环境中）
@@ -242,7 +312,6 @@ func (c *Client) getLocalIP() string {
 	}
 
 	// 3. 尝试从网络接口获取真实的 IP 地址
-	// 获取所有网络接口
 	interfaces, err := net.Interfaces()
 	if err == nil {
 		for _, iface := range interfaces {
@@ -251,7 +320,6 @@ func (c *Client) getLocalIP() string {
 				continue
 			}
 
-			// 获取接口地址
 			addrs, err := iface.Addrs()
 			if err != nil {
 				continue
@@ -271,23 +339,27 @@ func (c *Client) getLocalIP() string {
 					continue
 				}
 
-				// 返回第一个有效的 IPv4 地址
 				return ip.String()
 			}
 		}
 	}
 
-	// 4. 如果都获取不到，尝试通过连接外部地址获取本地 IP
+	// 4. 兜底：从 fib_trie 解析本机 IP（精简容器/受限环境里更稳）
+	if ip := getLocalIPv4FromFibTrie(); ip != "" {
+		return ip
+	}
+
+	// 5. 最后尝试通过 UDP 探测拿到出口 IP
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err == nil {
 		defer conn.Close()
-		localAddr := conn.LocalAddr().(*net.UDPAddr)
-		if localAddr.IP != nil && !localAddr.IP.IsLoopback() {
-			return localAddr.IP.String()
+		if localAddr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+			if localAddr.IP != nil && localAddr.IP.To4() != nil && !localAddr.IP.IsLoopback() {
+				return localAddr.IP.String()
+			}
 		}
 	}
 
-	// 5. 最后返回回环地址作为兜底
 	return "127.0.0.1"
 }
 
