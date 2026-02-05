@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/cloud-agent/internal/common"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -110,10 +112,6 @@ func (e *K8sExecutor) Type() common.TaskType {
 
 // Execute 执行 K8s 操作
 func (e *K8sExecutor) Execute(taskID string, command string, params map[string]interface{}, fileID string, logCallback LogCallback) (string, error) {
-	if command == "" {
-		return "", common.NewError("k8s YAML or JSON content is required")
-	}
-
 	// 获取操作类型，默认为 apply（create 或 update）
 	operation := "apply"
 	if op, ok := params["operation"].(string); ok && op != "" {
@@ -122,6 +120,15 @@ func (e *K8sExecutor) Execute(taskID string, command string, params map[string]i
 
 	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 	defer cancel()
+
+	// logs 操作特殊处理：不需要 YAML/JSON 内容
+	if operation == "logs" {
+		return e.getLogs(ctx, command, params, logCallback, taskID)
+	}
+
+	if command == "" {
+		return "", common.NewError("k8s YAML or JSON content is required")
+	}
 
 	// 判断是 YAML 还是 JSON 格式
 	format := e.detectFormat(command)
@@ -308,8 +315,97 @@ func (e *K8sExecutor) processManifest(ctx context.Context, manifest string, form
 		// apply 操作：如果存在则更新，不存在则创建
 		return e.applyResource(ctx, dr, obj, gvk, namespace, logCallback, taskID)
 	default:
-		return "", fmt.Errorf("unsupported operation: %s (supported: create, update, delete, patch, apply)", operation)
+		return "", fmt.Errorf("unsupported operation: %s (supported: create, update, delete, patch, apply, logs)", operation)
 	}
+}
+
+// getLogs 获取 Pod 日志
+func (e *K8sExecutor) getLogs(ctx context.Context, command string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	if e.clientset == nil {
+		return "", common.NewError("kubernetes client not initialized")
+	}
+
+	// 解析 Pod 信息
+	// command 格式: "Pod/pod-name" 或 "pod-name"
+	podName := command
+	if strings.Contains(command, "/") {
+		parts := strings.SplitN(command, "/", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Pod") {
+			podName = parts[1]
+		}
+	}
+
+	if podName == "" {
+		return "", common.NewError("pod name is required for logs operation (format: \"Pod/pod-name\" or \"pod-name\")")
+	}
+
+	// 获取命名空间
+	namespace := e.namespace
+	if ns, ok := params["namespace"].(string); ok && ns != "" {
+		namespace = ns
+	}
+
+	// 获取容器名（多容器 Pod）
+	container := ""
+	if c, ok := params["container"].(string); ok {
+		container = c
+	}
+
+	// 是否查看上一个容器的日志（容器重启后）
+	previous := false
+	if p, ok := params["previous"].(bool); ok {
+		previous = p
+	}
+
+	// 获取日志行数，默认 10 行
+	tailLines := int64(10)
+	if tl, ok := params["tail_lines"].(int); ok && tl > 0 {
+		tailLines = int64(tl)
+	}
+	if tl, ok := params["tail_lines"].(float64); ok && tl > 0 {
+		tailLines = int64(tl)
+	}
+
+	if logCallback != nil {
+		msg := fmt.Sprintf("Getting logs for Pod %s/%s", namespace, podName)
+		if container != "" {
+			msg += fmt.Sprintf(" (container: %s)", container)
+		}
+		if previous {
+			msg += " [previous container]"
+		}
+		msg += fmt.Sprintf(", tail %d lines", tailLines)
+		logCallback(taskID, "info", msg)
+	}
+
+	// 构建日志请求选项
+	logOptions := &corev1.PodLogOptions{
+		TailLines: &tailLines,
+		Previous:  previous,
+	}
+	if container != "" {
+		logOptions.Container = container
+	}
+
+	// 获取日志
+	req := e.clientset.CoreV1().Pods(namespace).GetLogs(podName, logOptions)
+	podLogs, err := req.Stream(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pod logs: %w", err)
+	}
+	defer podLogs.Close()
+
+	// 读取日志内容
+	logs, err := io.ReadAll(podLogs)
+	if err != nil {
+		return "", fmt.Errorf("failed to read pod logs: %w", err)
+	}
+
+	if logCallback != nil {
+		logCallback(taskID, "info", fmt.Sprintf("Successfully retrieved logs for Pod %s/%s", namespace, podName))
+	}
+
+	return string(logs), nil
 }
 
 // createResource 创建资源
