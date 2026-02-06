@@ -4,21 +4,28 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ## 功能简介
 
-- 支持 `create`、`update`、`delete`、`patch`、`apply` 五种操作类型
+- 支持 `create`、`update`、`delete`、`patch`、`apply`、`get`、`describe`、`events`、`logs` 多种操作类型
 - 支持 YAML 和 JSON 两种资源定义格式
 - 支持多资源文件（使用 `---` 分隔）
 - 支持命名空间和集群级别资源
 - 支持动态 REST Mapper 自动发现 API 资源
 
-## Cloud 端 API 调用方式
+## Cloud API 调用说明
+
+任务通过 Cloud API 下发，由 Agent 接收并执行。
+
+- **接口地址**: `POST /api/v1/tasks`
+- **Content-Type**: `application/json`
 
 ### 请求参数
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `task_type` | string | 是 | 固定值为 `"k8s"` |
+| `agent_id` | string | 是 | 目标 Agent ID |
+| `type` | string | 是 | 任务类型，固定值为 `"k8s"` |
 | `command` | string | 是 | K8s 资源 YAML/JSON 内容 |
 | `params` | object | 否 | 扩展参数，见下表 |
+| `sync` | bool | 否 | 是否同步等待结果，默认 `false` |
 | `timeout` | int | 否 | 超时时间（秒），默认 1800（30分钟） |
 
 ### Params 参数说明
@@ -29,6 +36,10 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 | `namespace` | string | 否 | `"default"` | 目标命名空间 |
 | `patch_type` | string | 否 | `"strategic"` | Patch 类型（`patch` 操作时有效）：`json`、`merge`、`strategic` |
 | `kubeconfig` | string | 否 | `"~/.kube/config"` | kubeconfig 文件路径 |
+| `output` | string | 否 | `"json"` | 输出格式：`json`、`yaml`（`get`/`events` 有效） |
+| `field_selector` | string | 否 | - | 字段选择器（`events` 有效） |
+| `sort_by` | string | 否 | `"lastTimestamp"` | 排序字段（`events` 有效） |
+| `limit` | int | 否 | - | 返回数量限制（`events` 有效） |
 
 ### 操作类型说明
 
@@ -39,6 +50,9 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 | `delete` | 删除资源 |
 | `patch` | 对资源进行补丁更新 |
 | `apply` | 声明式应用，资源存在则更新，不存在则创建 |
+| `get` | 获取资源（支持 JSON/YAML 输出） |
+| `describe` | 获取资源详情及相关事件 |
+| `events` | 获取集群事件 |
 | `logs` | 获取 Pod 日志（容器重启后可查看上一个容器日志） |
 
 ### Logs 操作参数（`operation=logs` 时）
@@ -57,7 +71,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx-deployment\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: nginx\n  template:\n    metadata:\n      labels:\n        app: nginx\n    spec:\n      containers:\n      - name: nginx\n        image: nginx:1.25\n        ports:\n        - containerPort: 80",
   "params": {
     "operation": "apply",
@@ -70,7 +85,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "apiVersion: v1\nkind: Service\nmetadata:\n  name: my-service",
   "params": {
     "operation": "delete",
@@ -83,7 +99,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "{\"apiVersion\": \"v1\", \"kind\": \"ConfigMap\", \"metadata\": {\"name\": \"app-config\"}, \"data\": {\"config.json\": \"{\\\"key\\\": \\\"value\\\"}\"}}",
   "params": {
     "operation": "apply",
@@ -96,7 +113,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: test-ns\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-config\n  namespace: test-ns\ndata:\n  key: value",
   "params": {
     "operation": "apply"
@@ -108,7 +126,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "{\"spec\": {\"replicas\": 5}}",
   "params": {
     "operation": "patch",
@@ -122,7 +141,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "Pod/nginx-pod-xxx",
   "params": {
     "operation": "logs",
@@ -135,7 +155,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "nginx-pod-xxx",
   "params": {
     "operation": "logs",
@@ -150,7 +171,8 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 
 ```json
 {
-  "task_type": "k8s",
+  "agent_id": "agent-123",
+  "type": "k8s",
   "command": "Pod/my-app-pod",
   "params": {
     "operation": "logs",
@@ -162,11 +184,71 @@ K8s 插件用于在 Kubernetes 集群中执行资源操作，支持通过 YAML �
 }
 ```
 
+### 示例 9：获取 Pod 列表（YAML 格式）
+
+```json
+{
+  "agent_id": "agent-123",
+  "type": "k8s",
+  "command": "pods",
+  "params": {
+    "operation": "get",
+    "namespace": "default",
+    "output": "yaml"
+  }
+}
+```
+
+### 示例 10：获取特定 Service 详情
+
+```json
+{
+  "agent_id": "agent-123",
+  "type": "k8s",
+  "command": "services/my-service",
+  "params": {
+    "operation": "get",
+    "namespace": "default"
+  }
+}
+```
+
+### 示例 11：Describe Deployment
+
+```json
+{
+  "agent_id": "agent-123",
+  "type": "k8s",
+  "command": "deployment/nginx-deployment",
+  "params": {
+    "operation": "describe",
+    "namespace": "default"
+  }
+}
+```
+
+### 示例 12：获取 Warning 级别的事件（按时间排序，限制 20 条）
+
+```json
+{
+  "agent_id": "agent-123",
+  "type": "k8s",
+  "command": "",
+  "params": {
+    "operation": "events",
+    "namespace": "default",
+    "field_selector": "type=Warning",
+    "sort_by": "lastTimestamp",
+    "limit": 20
+  }
+}
+```
+
 ## 返回结果
 
-执行成功后返回 JSON 格式的资源对象（或对象数组，多资源时）。
+执行成功后，`result` 字段将包含 JSON 格式的资源对象（或对象数组，多资源时）。
 
-成功响应示例：
+响应示例（`result` 字段内容）：
 
 ```json
 {

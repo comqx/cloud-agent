@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
+	sigsyaml "sigs.k8s.io/yaml"
 )
 
 // K8sExecutor Kubernetes 执行器（使用 client-go）
@@ -652,4 +654,258 @@ func (e *K8sExecutor) isClusterScopedResource(kind string) bool {
 		"VolumeAttachment":               true,
 	}
 	return clusterScopedKinds[kind]
+}
+
+// getResource 获取资源
+func (e *K8sExecutor) getResource(ctx context.Context, command string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	if e.dynamicClient == nil {
+		return "", common.NewError("kubernetes client not initialized")
+	}
+
+	resource, name, err := e.parseResourceAndName(command)
+	if err != nil {
+		return "", err
+	}
+
+	gvr, isNamespaced, err := e.resolveGVR(resource)
+	if err != nil {
+		return "", err
+	}
+
+	namespace := e.namespace
+	if ns, ok := params["namespace"].(string); ok && ns != "" {
+		namespace = ns
+	}
+
+	var dr dynamic.ResourceInterface
+	if isNamespaced {
+		dr = e.dynamicClient.Resource(gvr).Namespace(namespace)
+	} else {
+		dr = e.dynamicClient.Resource(gvr)
+	}
+
+	var obj interface{}
+	if name != "" {
+		u, err := dr.Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		obj = u.Object
+	} else {
+		list, err := dr.List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return "", err
+		}
+		obj = list.Object
+	}
+
+	outputFormat := "json"
+	if out, ok := params["output"].(string); ok && out != "" {
+		outputFormat = strings.ToLower(out)
+	}
+
+	if outputFormat == "yaml" {
+		y, err := sigsyaml.Marshal(obj)
+		if err != nil {
+			return "", err
+		}
+		return string(y), nil
+	}
+
+	j, err := json.MarshalIndent(obj, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(j), nil
+}
+
+// describeResource 描述资源
+func (e *K8sExecutor) describeResource(ctx context.Context, command string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	if e.clientset == nil || e.dynamicClient == nil {
+		return "", common.NewError("kubernetes client not initialized")
+	}
+
+	resource, name, err := e.parseResourceAndName(command)
+	if err != nil {
+		return "", err
+	}
+
+	if name == "" {
+		return "", fmt.Errorf("describe requires a resource name")
+	}
+
+	gvr, isNamespaced, err := e.resolveGVR(resource)
+	if err != nil {
+		return "", err
+	}
+
+	namespace := e.namespace
+	if ns, ok := params["namespace"].(string); ok && ns != "" {
+		namespace = ns
+	}
+
+	var dr dynamic.ResourceInterface
+	if isNamespaced {
+		dr = e.dynamicClient.Resource(gvr).Namespace(namespace)
+	} else {
+		dr = e.dynamicClient.Resource(gvr)
+	}
+
+	obj, err := dr.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	fieldSelector := fmt.Sprintf("involvedObject.uid=%s", obj.GetUID())
+	events, err := e.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
+		FieldSelector: fieldSelector,
+	})
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Name: %s\n", obj.GetName()))
+	sb.WriteString(fmt.Sprintf("Namespace: %s\n", obj.GetNamespace()))
+	sb.WriteString(fmt.Sprintf("Kind: %s\n", obj.GetKind()))
+	sb.WriteString(fmt.Sprintf("UID: %s\n", obj.GetUID()))
+
+	if len(obj.GetLabels()) > 0 {
+		sb.WriteString("Labels:\n")
+		for k, v := range obj.GetLabels() {
+			sb.WriteString(fmt.Sprintf("  %s=%s\n", k, v))
+		}
+	}
+	if len(obj.GetAnnotations()) > 0 {
+		sb.WriteString("Annotations:\n")
+		for k, v := range obj.GetAnnotations() {
+			sb.WriteString(fmt.Sprintf("  %s=%s\n", k, v))
+		}
+	}
+
+	sb.WriteString("\nEvents:\n")
+	if err != nil {
+		sb.WriteString(fmt.Sprintf("Error getting events: %v\n", err))
+	} else {
+		sort.Slice(events.Items, func(i, j int) bool {
+			return events.Items[i].LastTimestamp.Time.Before(events.Items[j].LastTimestamp.Time)
+		})
+
+		sb.WriteString(fmt.Sprintf("%-12s %-12s %-12s %-20s %s\n", "Type", "Reason", "Age", "From", "Message"))
+		sb.WriteString(fmt.Sprintf("%-12s %-12s %-12s %-20s %s\n", "----", "------", "---", "----", "-------"))
+		for _, evt := range events.Items {
+			age := time.Since(evt.LastTimestamp.Time).Round(time.Second)
+			sb.WriteString(fmt.Sprintf("%-12s %-12s %-12s %-20s %s\n", evt.Type, evt.Reason, age.String(), evt.Source.Component, evt.Message))
+		}
+	}
+
+	return sb.String(), nil
+}
+
+// getEvents 获取事件
+func (e *K8sExecutor) getEvents(ctx context.Context, command string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	if e.clientset == nil {
+		return "", common.NewError("kubernetes client not initialized")
+	}
+
+	namespace := e.namespace
+	if ns, ok := params["namespace"].(string); ok && ns != "" {
+		namespace = ns
+	}
+
+	opts := metav1.ListOptions{}
+
+	if fs, ok := params["field_selector"].(string); ok {
+		opts.FieldSelector = fs
+	}
+
+	events, err := e.clientset.CoreV1().Events(namespace).List(ctx, opts)
+	if err != nil {
+		return "", err
+	}
+
+	sortBy := "lastTimestamp"
+	if s, ok := params["sort_by"].(string); ok && s != "" {
+		sortBy = s
+	}
+
+	if sortBy == "lastTimestamp" {
+		sort.Slice(events.Items, func(i, j int) bool {
+			return events.Items[i].LastTimestamp.Time.Before(events.Items[j].LastTimestamp.Time)
+		})
+	}
+
+	if l, ok := params["limit"].(int); ok && l > 0 && l < len(events.Items) {
+		events.Items = events.Items[:l]
+	}
+	if l, ok := params["limit"].(float64); ok && l > 0 && int(l) < len(events.Items) {
+		events.Items = events.Items[:int(l)]
+	}
+
+	outputFormat := "json"
+	if out, ok := params["output"].(string); ok && out != "" {
+		outputFormat = strings.ToLower(out)
+	}
+
+	if outputFormat == "yaml" {
+		y, err := sigsyaml.Marshal(events)
+		if err != nil {
+			return "", err
+		}
+		return string(y), nil
+	}
+
+	j, err := json.MarshalIndent(events, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(j), nil
+}
+
+// parseResourceAndName 解析资源和名称
+func (e *K8sExecutor) parseResourceAndName(command string) (string, string, error) {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return "", "", fmt.Errorf("command is required")
+	}
+
+	parts := strings.Fields(command)
+	if len(parts) >= 2 {
+		return parts[0], parts[1], nil
+	}
+
+	if strings.Contains(command, "/") {
+		parts = strings.SplitN(command, "/", 2)
+		return parts[0], parts[1], nil
+	}
+
+	return command, "", nil
+}
+
+// resolveGVR 解析 GVR
+func (e *K8sExecutor) resolveGVR(resource string) (schema.GroupVersionResource, bool, error) {
+	if e.clientset != nil {
+		groups, err := e.clientset.Discovery().ServerPreferredResources()
+		if err == nil {
+			for _, group := range groups {
+				for _, r := range group.APIResources {
+					if strings.EqualFold(r.Name, resource) || strings.EqualFold(r.Kind, resource) || contains(r.ShortNames, resource) {
+						gv, _ := schema.ParseGroupVersion(group.GroupVersion)
+						return schema.GroupVersionResource{
+							Group:    gv.Group,
+							Version:  gv.Version,
+							Resource: r.Name,
+						}, r.Namespaced, nil
+					}
+				}
+			}
+		}
+	}
+	return schema.GroupVersionResource{}, false, fmt.Errorf("resource type %s not found", resource)
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if strings.EqualFold(a, e) {
+			return true
+		}
+	}
+	return false
 }
