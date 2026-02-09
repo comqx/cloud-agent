@@ -16,7 +16,7 @@ Kubernetes 插件（任务类型：k8s-api）使用 `client-go` SDK 直接操作
 - ✅ YAML/JSON 格式资源定义
 - ✅ 多资源批量操作（使用 `---` 分隔）
 - ✅ In-cluster 配置自动识别
-- ✅ 支持 create、update、delete、patch、apply 操作
+- ✅ 支持 create、update、delete、patch、apply、logs 操作
 - ✅ 实时日志输出
 
 ## 参数说明
@@ -25,16 +25,19 @@ Kubernetes 插件（任务类型：k8s-api）使用 `client-go` SDK 直接操作
 
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
-| `command` | string | 是 | YAML 或 JSON 格式的资源定义 |
+| `command` | string | 是 | YAML/JSON 资源定义，或 Pod 名称（logs 操作） |
 | `params` | object | 否 | 操作参数 |
 
 ### params 对象结构
 
 | 参数名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `operation` | string | apply | 操作类型：create/update/delete/patch/apply |
+| `operation` | string | apply | 操作类型：create/update/delete/patch/apply/logs |
 | `namespace` | string | default | 目标命名空间 |
 | `patch_type` | string | strategic | Patch 类型：strategic/merge/json |
+| `container` | string | - | 容器名称（仅 logs 操作） |
+| `tail_lines` | int | 10 | 日志行数（仅 logs 操作） |
+| `previous` | boolean | false | 是否查看上一个容器日志（仅 logs 操作） |
 
 ## 配置示例
 
@@ -136,6 +139,22 @@ plugins:
 }
 ```
 
+### 示例 7: 获取 Pod 日志
+
+**任务参数：**
+```json
+{
+  "type": "k8s",
+  "command": "Pod/nginx-deployment-5d59d67564-abcde",
+  "params": {
+    "operation": "logs",
+    "namespace": "default",
+    "container": "nginx",
+    "tail_lines": 100
+  }
+}
+```
+
 ## 操作类型说明
 
 ### create
@@ -160,6 +179,11 @@ plugins:
   - `strategic`: 策略合并（默认）
   - `merge`: JSON 合并
   - `json`: JSON Patch
+
+### logs
+- 获取 Pod 日志
+- 支持指定容器、行数、是否查看上一次日志
+- command 格式：`Pod/<pod-name>` 或 `<pod-name>`
 
 ## 支持的资源类型
 

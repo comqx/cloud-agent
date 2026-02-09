@@ -40,6 +40,7 @@ func main() {
 	}
 
 	log.Printf("Starting agent: %s (%s)", *agentName, *agentID)
+	log.Printf("Build Version: 20260208-debug-fix-k8s") // Added for debugging
 	log.Printf("Connecting to cloud: %s", *cloudURL)
 
 	// 创建并启动 Agent

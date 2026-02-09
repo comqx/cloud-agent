@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"log"
 	"sync"
 
 	"github.com/cloud-agent/internal/agent/plugins"
@@ -29,16 +30,18 @@ type ManagerConfig struct {
 
 // NewManager 创建执行器管理器
 func NewManager(agentID string) *Manager {
-	return NewManagerWithConfigAndLimits(agentID, "", "", nil)
+	m, _ := NewManagerWithConfigAndLimits(agentID, "", "", nil)
+	return m
 }
 
 // NewManagerWithLimits 创建带限流配置的执行器管理器
 func NewManagerWithLimits(agentID string, config *ManagerConfig) *Manager {
-	return NewManagerWithConfigAndLimits(agentID, "", "", config)
+	m, _ := NewManagerWithConfigAndLimits(agentID, "", "", config)
+	return m
 }
 
 // NewManagerWithConfigAndLimits 从配置文件创建执行器管理器，并支持限流配置
-func NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath string, limits *ManagerConfig) *Manager {
+func NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath string, limits *ManagerConfig) (*Manager, error) {
 	m := &Manager{
 		executors:          make(map[common.TaskType]plugins.Executor),
 		running:            make(map[string]context.CancelFunc),
@@ -66,9 +69,12 @@ func NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath strin
 	// 如果提供了配置文件路径，加载配置
 	if configPath != "" {
 		config, err := LoadPluginConfig(configPath)
-		if err == nil {
-			// 加载插件
-			LoadPluginsFromConfig(config, m)
+		if err != nil {
+			return nil, err
+		}
+		// 加载插件
+		if err := LoadPluginsFromConfig(config, m); err != nil {
+			return nil, err
 		}
 	} else {
 		// 注册默认执行器
@@ -77,25 +83,37 @@ func NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath strin
 		}
 		m.RegisterExecutor(plugins.NewFileExecutor(nil))
 		m.RegisterExecutor(plugins.NewAPIExecutor(nil))
+		m.RegisterExecutor(plugins.NewK8sExecutor(nil))
 		if helmExec, err := plugins.NewHelmExecutor(nil); err == nil {
 			m.RegisterExecutor(helmExec)
 		}
 	}
 
-	return m
+	return m, nil
 }
 
 // NewManagerWithConfig 从配置文件创建执行器管理器（保持向后兼容）
 func NewManagerWithConfig(agentID, configPath, securityConfigPath string) (*Manager, error) {
-	m := NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath, nil)
-	return m, nil
+	return NewManagerWithConfigAndLimits(agentID, configPath, securityConfigPath, nil)
 }
 
 // RegisterExecutor 注册执行器
 func (m *Manager) RegisterExecutor(exec plugins.Executor) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	log.Printf("Manager: registering executor for type '%s'", exec.Type())
 	m.executors[exec.Type()] = exec
+}
+
+// GetRegisteredExecutors 获取所有已注册的执行器类型
+func (m *Manager) GetRegisteredExecutors() []common.TaskType {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	types := make([]common.TaskType, 0, len(m.executors))
+	for t := range m.executors {
+		types = append(types, t)
+	}
+	return types
 }
 
 // Execute 执行任务（带并发控制）

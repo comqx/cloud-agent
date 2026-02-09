@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -32,6 +33,21 @@ func LoadPluginConfig(configPath string) (*PluginConfig, error) {
 				Plugins: []PluginDefinition{
 					{
 						Type:    string(common.TaskTypeShell),
+						Enabled: true,
+						Config:  make(map[string]interface{}),
+					},
+					{
+						Type:    string(common.TaskTypeK8s),
+						Enabled: true,
+						Config:  make(map[string]interface{}),
+					},
+					{
+						Type:    string(common.TaskTypeAPI),
+						Enabled: true,
+						Config:  make(map[string]interface{}),
+					},
+					{
+						Type:    string(common.TaskTypeFile),
 						Enabled: true,
 						Config:  make(map[string]interface{}),
 					},
@@ -70,8 +86,11 @@ func SavePluginConfig(config *PluginConfig, configPath string) error {
 
 // LoadPluginsFromConfig 从配置加载插件
 func LoadPluginsFromConfig(config *PluginConfig, manager *Manager) error {
-	for _, pluginDef := range config.Plugins {
+	log.Printf("Loading plugins from config with %d definitions", len(config.Plugins))
+	for i, pluginDef := range config.Plugins {
+		log.Printf("Processing plugin definition #%d: type=%s, enabled=%v", i, pluginDef.Type, pluginDef.Enabled)
 		if !pluginDef.Enabled {
+			log.Printf("Plugin %s is disabled, skipping", pluginDef.Type)
 			continue
 		}
 
@@ -111,10 +130,16 @@ func LoadPluginsFromConfig(config *PluginConfig, manager *Manager) error {
 		case common.TaskTypeFile:
 			exec = plugins.NewFileExecutor(pluginDef.Config)
 		default:
+			log.Printf("Unknown plugin type: %s", pluginDef.Type)
 			return fmt.Errorf("unknown plugin type: %s", pluginDef.Type)
 		}
 
-		manager.RegisterExecutor(exec)
+		if exec != nil {
+			log.Printf("Registering executor for type: %s", taskType)
+			manager.RegisterExecutor(exec)
+		} else {
+			log.Printf("Executor for type %s is nil, skipping registration", taskType)
+		}
 	}
 
 	return nil

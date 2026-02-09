@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sort"
 	"strings"
@@ -49,48 +50,83 @@ func NewK8sExecutor(config map[string]interface{}) *K8sExecutor {
 		exec.namespace = namespace
 	}
 
-	// 构建 kubeconfig 路径
-	kubeconfig := "~/.kube/config"
-	if kubeconfigPath, ok := config["kubeconfig"].(string); ok {
-		kubeconfig = kubeconfigPath
+	normalizeHost := func(host string) string {
+		host = strings.TrimSpace(host)
+		host = strings.Trim(host, "`\"'")
+		host = strings.TrimSpace(host)
+		return host
 	}
 
-	// 展开 ~ 路径
-	if strings.HasPrefix(kubeconfig, "~") {
-		home, _ := os.UserHomeDir()
-		kubeconfig = strings.Replace(kubeconfig, "~", home, 1)
-	}
+	const defaultKubeletConfig = "/etc/kubernetes/kubelet.conf"
+	const defaultCloudAgentSATokenFile = "/tmp/.cloud-agent/sa/token"
+	const defaultCloudAgentSACAFile = "/tmp/.cloud-agent/sa/ca.crt"
 
-	// 加载 kubeconfig
-	var restConfig *rest.Config
-	var err error
+	apiServer, _ := config["api_server"].(string)
+	apiServer = normalizeHost(apiServer)
 
-	// 优先使用 in-cluster 配置（如果在 Pod 中运行）
-	restConfig, err = rest.InClusterConfig()
-	if err != nil {
-		// 如果不在集群内，使用 kubeconfig 文件
-		if _, err := os.Stat(kubeconfig); err == nil {
-			restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-			if err != nil {
-				// 如果加载失败，返回一个空的执行器，会在首次使用时尝试重新加载
-				return exec
-			}
-		} else {
-			// kubeconfig 文件不存在，返回空的执行器
-			return exec
+	if apiServer == "" {
+		kubeletConfigPath := defaultKubeletConfig
+		if v, ok := config["kubelet_config"].(string); ok && strings.TrimSpace(v) != "" {
+			kubeletConfigPath = strings.TrimSpace(v)
 		}
+		if kubeletConfigPath != "" {
+			server, err := kubeconfigServer(kubeletConfigPath)
+			if err != nil {
+				log.Printf("[K8s] Failed to read api server from kubelet_config %s: %v", kubeletConfigPath, err)
+			} else {
+				apiServer = normalizeHost(server)
+			}
+		}
+	}
+
+	if apiServer == "" {
+		log.Printf("[K8s] api_server is required for ServiceAccount token auth")
+		return exec
+	}
+
+	tokenFile := defaultCloudAgentSATokenFile
+	if v, ok := config["token_file"].(string); ok && strings.TrimSpace(v) != "" {
+		tokenFile = strings.TrimSpace(v)
+	}
+	caFile := defaultCloudAgentSACAFile
+	if v, ok := config["ca_file"].(string); ok && strings.TrimSpace(v) != "" {
+		caFile = strings.TrimSpace(v)
+	}
+
+	if _, statErr := os.Stat(tokenFile); statErr != nil {
+		log.Printf("[K8s] ServiceAccount token file not accessible %s: %v", tokenFile, statErr)
+		return exec
+	}
+
+	caBytes, readErr := os.ReadFile(caFile)
+	if readErr != nil {
+		log.Printf("[K8s] Failed to read ServiceAccount CA file %s: %v", caFile, readErr)
+		return exec
+	}
+
+	restConfig := &rest.Config{
+		Host:            apiServer,
+		BearerTokenFile: tokenFile,
+		TLSClientConfig: rest.TLSClientConfig{
+			CAData: caBytes,
+		},
+		Timeout: exec.timeout,
 	}
 
 	// 创建 clientset
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err == nil {
 		exec.clientset = clientset
+	} else {
+		log.Printf("[K8s] Failed to create clientset: %v", err)
 	}
 
 	// 创建 dynamic client
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err == nil {
 		exec.dynamicClient = dynamicClient
+	} else {
+		log.Printf("[K8s] Failed to create dynamic client: %v", err)
 	}
 
 	// 创建 REST mapper（使用 discovery client 动态发现 API 资源）
@@ -100,11 +136,40 @@ func NewK8sExecutor(config map[string]interface{}) *K8sExecutor {
 		cachedDiscovery := memory.NewMemCacheClient(discoveryClient)
 		exec.restMapper = restmapper.NewDeferredDiscoveryRESTMapper(cachedDiscovery)
 	} else {
+		log.Printf("[K8s] Failed to create discovery client: %v", err)
 		// 如果创建失败，使用空的 REST mapper（会在运行时尝试重新创建）
 		exec.restMapper = meta.NewDefaultRESTMapper([]schema.GroupVersion{})
 	}
 
 	return exec
+}
+
+func kubeconfigServer(path string) (string, error) {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	cfg, err := clientcmd.Load(bytes)
+	if err != nil {
+		return "", err
+	}
+
+	if cfg.CurrentContext != "" {
+		if ctx, ok := cfg.Contexts[cfg.CurrentContext]; ok && ctx != nil && ctx.Cluster != "" {
+			if cluster, ok := cfg.Clusters[ctx.Cluster]; ok && cluster != nil && cluster.Server != "" {
+				return cluster.Server, nil
+			}
+		}
+	}
+
+	for _, cluster := range cfg.Clusters {
+		if cluster != nil && cluster.Server != "" {
+			return cluster.Server, nil
+		}
+	}
+
+	return "", fmt.Errorf("server not found in kubeconfig")
 }
 
 // Type 返回执行器类型
@@ -128,6 +193,11 @@ func (e *K8sExecutor) Execute(taskID string, command string, params map[string]i
 		return e.getLogs(ctx, command, params, logCallback, taskID)
 	}
 
+	// events 操作特殊处理：不需要 YAML/JSON 内容
+	if operation == "events" {
+		return e.getEvents(ctx, command, params, logCallback, taskID)
+	}
+
 	if command == "" {
 		return "", common.NewError("k8s YAML or JSON content is required")
 	}
@@ -135,7 +205,10 @@ func (e *K8sExecutor) Execute(taskID string, command string, params map[string]i
 	// 判断是 YAML 还是 JSON 格式
 	format := e.detectFormat(command)
 	if format == "unknown" {
-		return "", common.NewError("invalid format: must be YAML or JSON, and must contain apiVersion and kind fields")
+		// 尝试作为资源引用（Kind/Name）处理
+		// 适用于 get, delete 等不需要完整 YAML/JSON 内容的操作
+		// 对于不支持的操作，processResourceRef 会返回相应的错误信息
+		return e.processResourceRef(ctx, command, operation, params, logCallback, taskID)
 	}
 
 	// 执行操作
@@ -177,6 +250,8 @@ func (e *K8sExecutor) processContent(ctx context.Context, content string, format
 
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Processing %s with operation: %s", strings.ToUpper(format), operation))
+	} else {
+		log.Printf("[K8s] [%s] Processing %s with operation: %s", taskID, strings.ToUpper(format), operation)
 	}
 
 	// 分割内容（支持多资源，使用 --- 分隔）
@@ -191,6 +266,8 @@ func (e *K8sExecutor) processContent(ctx context.Context, content string, format
 
 		if logCallback != nil {
 			logCallback(taskID, "info", fmt.Sprintf("Processing manifest %d/%d", i+1, len(manifests)))
+		} else {
+			log.Printf("[K8s] [%s] Processing manifest %d/%d", taskID, i+1, len(manifests))
 		}
 
 		result, err := e.processManifest(ctx, manifest, format, operation, params, logCallback, taskID)
@@ -316,9 +393,173 @@ func (e *K8sExecutor) processManifest(ctx context.Context, manifest string, form
 	case "apply":
 		// apply 操作：如果存在则更新，不存在则创建
 		return e.applyResource(ctx, dr, obj, gvk, namespace, logCallback, taskID)
+	case "get":
+		return e.getResourceFromDynamic(ctx, dr, obj.GetName(), params, logCallback, taskID)
 	default:
-		return "", fmt.Errorf("unsupported operation: %s (supported: create, update, delete, patch, apply, logs)", operation)
+		return "", fmt.Errorf("unsupported operation: %s (supported: create, update, delete, patch, apply, get, logs)", operation)
 	}
+}
+
+// processResourceRef 处理资源引用（Kind/Name 格式）
+func (e *K8sExecutor) processResourceRef(ctx context.Context, command string, operation string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	if e.dynamicClient == nil {
+		return "", common.NewError("kubernetes client not initialized")
+	}
+
+	// 解析 Kind/Name
+	parts := strings.Split(command, "/")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid resource format: expected Kind/Name (e.g. Pod/my-pod)")
+	}
+	kind := parts[0]
+	name := parts[1]
+
+	// 解析 GVK
+	gvk, err := e.resolveGVK(kind, params)
+	if err != nil {
+		return "", err
+	}
+
+	// 解析 GVR
+	gvr, isNamespaced, err := e.resolveGVRFromGVK(gvk)
+	if err != nil {
+		return "", err
+	}
+
+	// 确定命名空间
+	namespace := e.namespace
+	if ns, ok := params["namespace"].(string); ok && ns != "" {
+		namespace = ns
+	}
+
+	// 获取资源接口
+	var dr dynamic.ResourceInterface
+	if isNamespaced {
+		dr = e.dynamicClient.Resource(gvr).Namespace(namespace)
+	} else {
+		dr = e.dynamicClient.Resource(gvr)
+	}
+
+	if logCallback != nil {
+		logCallback(taskID, "info", fmt.Sprintf("Processing %s %s/%s in namespace %s", operation, kind, name, namespace))
+	} else {
+		log.Printf("[K8s] [%s] Processing %s %s/%s in namespace %s", taskID, operation, kind, name, namespace)
+	}
+
+	switch operation {
+	case "get":
+		return e.getResourceFromDynamic(ctx, dr, name, params, logCallback, taskID)
+	case "delete":
+		// 构造一个临时的 Unstructured 对象用于删除
+		obj := &unstructured.Unstructured{}
+		obj.SetName(name)
+		return e.deleteResource(ctx, dr, obj, gvk, namespace, logCallback, taskID)
+	case "describe":
+		return e.describeResource(ctx, dr, name, gvk, namespace, params, logCallback, taskID)
+	default:
+		return "", fmt.Errorf("unsupported operation for resource reference: %s (supported: get, delete, describe)", operation)
+	}
+}
+
+// resolveGVK 解析 GVK
+func (e *K8sExecutor) resolveGVK(kind string, params map[string]interface{}) (schema.GroupVersionKind, error) {
+	// 1. 检查 params 中的 api_version
+	if apiVersion, ok := params["api_version"].(string); ok && apiVersion != "" {
+		parts := strings.Split(apiVersion, "/")
+		if len(parts) == 2 {
+			return schema.GroupVersionKind{Group: parts[0], Version: parts[1], Kind: kind}, nil
+		}
+		return schema.GroupVersionKind{Version: apiVersion, Kind: kind}, nil
+	}
+
+	// 2. 常用资源映射
+	kindLower := strings.ToLower(kind)
+	switch kindLower {
+	case "pod", "pods", "po":
+		return schema.GroupVersionKind{Version: "v1", Kind: "Pod"}, nil
+	case "service", "services", "svc":
+		return schema.GroupVersionKind{Version: "v1", Kind: "Service"}, nil
+	case "configmap", "configmaps", "cm":
+		return schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"}, nil
+	case "secret", "secrets":
+		return schema.GroupVersionKind{Version: "v1", Kind: "Secret"}, nil
+	case "namespace", "namespaces", "ns":
+		return schema.GroupVersionKind{Version: "v1", Kind: "Namespace"}, nil
+	case "node", "nodes", "no":
+		return schema.GroupVersionKind{Version: "v1", Kind: "Node"}, nil
+	case "persistentvolume", "persistentvolumes", "pv":
+		return schema.GroupVersionKind{Version: "v1", Kind: "PersistentVolume"}, nil
+	case "persistentvolumeclaim", "persistentvolumeclaims", "pvc":
+		return schema.GroupVersionKind{Version: "v1", Kind: "PersistentVolumeClaim"}, nil
+	case "serviceaccount", "serviceaccounts", "sa":
+		return schema.GroupVersionKind{Version: "v1", Kind: "ServiceAccount"}, nil
+	case "deployment", "deployments", "deploy":
+		return schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, nil
+	case "statefulset", "statefulsets", "sts":
+		return schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, nil
+	case "daemonset", "daemonsets", "ds":
+		return schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "DaemonSet"}, nil
+	case "replicaset", "replicasets", "rs":
+		return schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}, nil
+	case "job", "jobs":
+		return schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}, nil
+	case "cronjob", "cronjobs", "cj":
+		return schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "CronJob"}, nil
+	case "ingress", "ingresses", "ing":
+		return schema.GroupVersionKind{Group: "networking.k8s.io", Version: "v1", Kind: "Ingress"}, nil
+	}
+
+	return schema.GroupVersionKind{}, fmt.Errorf("cannot resolve GVK for kind '%s', please specify 'api_version' in params", kind)
+}
+
+// resolveGVRFromGVK 解析 GVR
+func (e *K8sExecutor) resolveGVRFromGVK(gvk schema.GroupVersionKind) (schema.GroupVersionResource, bool, error) {
+	if e.restMapper != nil {
+		mapping, err := e.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err == nil {
+			return mapping.Resource, mapping.Scope.Name() == meta.RESTScopeNameNamespace, nil
+		}
+	}
+
+	// 回退：直接构建
+	gvr := schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: e.pluralizeKind(gvk.Kind),
+	}
+	isNamespaced := !e.isClusterScopedResource(gvk.Kind)
+	return gvr, isNamespaced, nil
+}
+
+// getResourceFromDynamic 获取资源
+func (e *K8sExecutor) getResourceFromDynamic(ctx context.Context, dr dynamic.ResourceInterface, name string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	result, err := dr.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get resource: %w", err)
+	}
+
+	if logCallback != nil {
+		logCallback(taskID, "info", fmt.Sprintf("Successfully retrieved %s", name))
+	} else {
+		log.Printf("[K8s] [%s] Successfully retrieved %s", taskID, name)
+	}
+
+	// 格式化输出
+	output := "json"
+	if o, ok := params["output"].(string); ok {
+		output = strings.ToLower(o)
+	}
+
+	if output == "yaml" {
+		yamlData, err := sigsyaml.Marshal(result.Object)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result to YAML: %w", err)
+		}
+		return string(yamlData), nil
+	}
+
+	resultJSON, _ := json.MarshalIndent(result.Object, "", "  ")
+	return string(resultJSON), nil
 }
 
 // getLogs 获取 Pod 日志
@@ -368,16 +609,19 @@ func (e *K8sExecutor) getLogs(ctx context.Context, command string, params map[st
 		tailLines = int64(tl)
 	}
 
+	msg := fmt.Sprintf("Getting logs for Pod %s/%s", namespace, podName)
+	if container != "" {
+		msg += fmt.Sprintf(" (container: %s)", container)
+	}
+	if previous {
+		msg += " [previous container]"
+	}
+	msg += fmt.Sprintf(", tail %d lines", tailLines)
+
 	if logCallback != nil {
-		msg := fmt.Sprintf("Getting logs for Pod %s/%s", namespace, podName)
-		if container != "" {
-			msg += fmt.Sprintf(" (container: %s)", container)
-		}
-		if previous {
-			msg += " [previous container]"
-		}
-		msg += fmt.Sprintf(", tail %d lines", tailLines)
 		logCallback(taskID, "info", msg)
+	} else {
+		log.Printf("[K8s] [%s] %s", taskID, msg)
 	}
 
 	// 构建日志请求选项
@@ -405,6 +649,8 @@ func (e *K8sExecutor) getLogs(ctx context.Context, command string, params map[st
 
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Successfully retrieved logs for Pod %s/%s", namespace, podName))
+	} else {
+		log.Printf("[K8s] [%s] Successfully retrieved logs for Pod %s/%s", taskID, namespace, podName)
 	}
 
 	return string(logs), nil
@@ -414,6 +660,8 @@ func (e *K8sExecutor) getLogs(ctx context.Context, command string, params map[st
 func (e *K8sExecutor) createResource(ctx context.Context, dr dynamic.ResourceInterface, obj *unstructured.Unstructured, gvk schema.GroupVersionKind, namespace string, logCallback LogCallback, taskID string) (string, error) {
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Creating %s/%s in namespace %s", gvk.Kind, obj.GetName(), namespace))
+	} else {
+		log.Printf("[K8s] [%s] Creating %s/%s in namespace %s", taskID, gvk.Kind, obj.GetName(), namespace)
 	}
 
 	result, err := dr.Create(ctx, obj, metav1.CreateOptions{})
@@ -423,6 +671,8 @@ func (e *K8sExecutor) createResource(ctx context.Context, dr dynamic.ResourceInt
 
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Successfully created %s/%s", gvk.Kind, obj.GetName()))
+	} else {
+		log.Printf("[K8s] [%s] Successfully created %s/%s", taskID, gvk.Kind, obj.GetName())
 	}
 
 	resultJSON, _ := json.MarshalIndent(result.Object, "", "  ")
@@ -433,6 +683,8 @@ func (e *K8sExecutor) createResource(ctx context.Context, dr dynamic.ResourceInt
 func (e *K8sExecutor) updateResource(ctx context.Context, dr dynamic.ResourceInterface, obj *unstructured.Unstructured, gvk schema.GroupVersionKind, namespace string, logCallback LogCallback, taskID string) (string, error) {
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Updating %s/%s in namespace %s", gvk.Kind, obj.GetName(), namespace))
+	} else {
+		log.Printf("[K8s] [%s] Updating %s/%s in namespace %s", taskID, gvk.Kind, obj.GetName(), namespace)
 	}
 
 	// 获取现有资源以获取 resourceVersion
@@ -457,6 +709,8 @@ func (e *K8sExecutor) updateResource(ctx context.Context, dr dynamic.ResourceInt
 
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Successfully updated %s/%s", gvk.Kind, obj.GetName()))
+	} else {
+		log.Printf("[K8s] [%s] Successfully updated %s/%s", taskID, gvk.Kind, obj.GetName())
 	}
 
 	resultJSON, _ := json.MarshalIndent(result.Object, "", "  ")
@@ -467,6 +721,8 @@ func (e *K8sExecutor) updateResource(ctx context.Context, dr dynamic.ResourceInt
 func (e *K8sExecutor) deleteResource(ctx context.Context, dr dynamic.ResourceInterface, obj *unstructured.Unstructured, gvk schema.GroupVersionKind, namespace string, logCallback LogCallback, taskID string) (string, error) {
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Deleting %s/%s in namespace %s", gvk.Kind, obj.GetName(), namespace))
+	} else {
+		log.Printf("[K8s] [%s] Deleting %s/%s in namespace %s", taskID, gvk.Kind, obj.GetName(), namespace)
 	}
 
 	err := dr.Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
@@ -476,6 +732,8 @@ func (e *K8sExecutor) deleteResource(ctx context.Context, dr dynamic.ResourceInt
 
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Successfully deleted %s/%s", gvk.Kind, obj.GetName()))
+	} else {
+		log.Printf("[K8s] [%s] Successfully deleted %s/%s", taskID, gvk.Kind, obj.GetName())
 	}
 
 	return fmt.Sprintf("Resource %s/%s deleted successfully", gvk.Kind, obj.GetName()), nil
@@ -485,6 +743,8 @@ func (e *K8sExecutor) deleteResource(ctx context.Context, dr dynamic.ResourceInt
 func (e *K8sExecutor) patchResource(ctx context.Context, dr dynamic.ResourceInterface, obj *unstructured.Unstructured, gvk schema.GroupVersionKind, namespace string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Patching %s/%s in namespace %s", gvk.Kind, obj.GetName(), namespace))
+	} else {
+		log.Printf("[K8s] [%s] Patching %s/%s in namespace %s", taskID, gvk.Kind, obj.GetName(), namespace)
 	}
 
 	// 获取 patch 类型，默认为 strategic-merge-patch
@@ -519,6 +779,8 @@ func (e *K8sExecutor) patchResource(ctx context.Context, dr dynamic.ResourceInte
 
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Successfully patched %s/%s", gvk.Kind, obj.GetName()))
+	} else {
+		log.Printf("[K8s] [%s] Successfully patched %s/%s", taskID, gvk.Kind, obj.GetName())
 	}
 
 	resultJSON, _ := json.MarshalIndent(result.Object, "", "  ")
@@ -529,6 +791,8 @@ func (e *K8sExecutor) patchResource(ctx context.Context, dr dynamic.ResourceInte
 func (e *K8sExecutor) applyResource(ctx context.Context, dr dynamic.ResourceInterface, obj *unstructured.Unstructured, gvk schema.GroupVersionKind, namespace string, logCallback LogCallback, taskID string) (string, error) {
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Applying %s/%s in namespace %s", gvk.Kind, obj.GetName(), namespace))
+	} else {
+		log.Printf("[K8s] [%s] Applying %s/%s in namespace %s", taskID, gvk.Kind, obj.GetName(), namespace)
 	}
 
 	var result *unstructured.Unstructured
@@ -544,6 +808,8 @@ func (e *K8sExecutor) applyResource(ctx context.Context, dr dynamic.ResourceInte
 			}
 			if logCallback != nil {
 				logCallback(taskID, "info", fmt.Sprintf("Created %s/%s", gvk.Kind, obj.GetName()))
+			} else {
+				log.Printf("[K8s] [%s] Created %s/%s", taskID, gvk.Kind, obj.GetName())
 			}
 		} else {
 			// 资源存在，更新
@@ -554,6 +820,8 @@ func (e *K8sExecutor) applyResource(ctx context.Context, dr dynamic.ResourceInte
 			}
 			if logCallback != nil {
 				logCallback(taskID, "info", fmt.Sprintf("Updated %s/%s", gvk.Kind, obj.GetName()))
+			} else {
+				log.Printf("[K8s] [%s] Updated %s/%s", taskID, gvk.Kind, obj.GetName())
 			}
 		}
 		return nil
@@ -635,168 +903,77 @@ func (e *K8sExecutor) pluralizeKind(kind string) string {
 	return kindLower + "s"
 }
 
-// isClusterScopedResource 判断资源是否是集群级别的（非命名空间资源）
+// isClusterScopedResource 判断是否是集群范围资源
 func (e *K8sExecutor) isClusterScopedResource(kind string) bool {
-	clusterScopedKinds := map[string]bool{
-		"Namespace":                      true,
-		"Node":                           true,
-		"PersistentVolume":               true,
-		"ClusterRole":                    true,
-		"ClusterRoleBinding":             true,
-		"StorageClass":                   true,
-		"CustomResourceDefinition":       true,
-		"APIService":                     true,
-		"MutatingWebhookConfiguration":   true,
-		"ValidatingWebhookConfiguration": true,
-		"PriorityClass":                  true,
-		"CSIDriver":                      true,
-		"CSINode":                        true,
-		"VolumeAttachment":               true,
+	kindLower := strings.ToLower(kind)
+	clusterScoped := map[string]bool{
+		"namespace":                true,
+		"node":                     true,
+		"persistentvolume":         true,
+		"clusterrole":              true,
+		"clusterrolebinding":       true,
+		"storageclass":             true,
+		"customresourcedefinition": true,
 	}
-	return clusterScopedKinds[kind]
+	return clusterScoped[kindLower]
 }
 
-// getResource 获取资源
-func (e *K8sExecutor) getResource(ctx context.Context, command string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
-	if e.dynamicClient == nil {
-		return "", common.NewError("kubernetes client not initialized")
-	}
-
-	resource, name, err := e.parseResourceAndName(command)
-	if err != nil {
-		return "", err
-	}
-
-	gvr, isNamespaced, err := e.resolveGVR(resource)
-	if err != nil {
-		return "", err
-	}
-
-	namespace := e.namespace
-	if ns, ok := params["namespace"].(string); ok && ns != "" {
-		namespace = ns
-	}
-
-	var dr dynamic.ResourceInterface
-	if isNamespaced {
-		dr = e.dynamicClient.Resource(gvr).Namespace(namespace)
-	} else {
-		dr = e.dynamicClient.Resource(gvr)
-	}
-
-	var obj interface{}
-	if name != "" {
-		u, err := dr.Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return "", err
-		}
-		obj = u.Object
-	} else {
-		list, err := dr.List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return "", err
-		}
-		obj = list.Object
-	}
-
-	outputFormat := "json"
-	if out, ok := params["output"].(string); ok && out != "" {
-		outputFormat = strings.ToLower(out)
-	}
-
-	if outputFormat == "yaml" {
-		y, err := sigsyaml.Marshal(obj)
-		if err != nil {
-			return "", err
-		}
-		return string(y), nil
-	}
-
-	j, err := json.MarshalIndent(obj, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(j), nil
-}
+// getResource removed (duplicate)
 
 // describeResource 描述资源
-func (e *K8sExecutor) describeResource(ctx context.Context, command string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
-	if e.clientset == nil || e.dynamicClient == nil {
-		return "", common.NewError("kubernetes client not initialized")
-	}
-
-	resource, name, err := e.parseResourceAndName(command)
+func (e *K8sExecutor) describeResource(ctx context.Context, dr dynamic.ResourceInterface, name string, gvk schema.GroupVersionKind, namespace string, params map[string]interface{}, logCallback LogCallback, taskID string) (string, error) {
+	// 1. 获取资源
+	result, err := dr.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get resource: %w", err)
 	}
 
-	if name == "" {
-		return "", fmt.Errorf("describe requires a resource name")
-	}
-
-	gvr, isNamespaced, err := e.resolveGVR(resource)
-	if err != nil {
-		return "", err
-	}
-
-	namespace := e.namespace
-	if ns, ok := params["namespace"].(string); ok && ns != "" {
-		namespace = ns
-	}
-
-	var dr dynamic.ResourceInterface
-	if isNamespaced {
-		dr = e.dynamicClient.Resource(gvr).Namespace(namespace)
-	} else {
-		dr = e.dynamicClient.Resource(gvr)
-	}
-
-	obj, err := dr.Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	fieldSelector := fmt.Sprintf("involvedObject.uid=%s", obj.GetUID())
-	events, err := e.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
-		FieldSelector: fieldSelector,
-	})
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Name: %s\n", obj.GetName()))
-	sb.WriteString(fmt.Sprintf("Namespace: %s\n", obj.GetNamespace()))
-	sb.WriteString(fmt.Sprintf("Kind: %s\n", obj.GetKind()))
-	sb.WriteString(fmt.Sprintf("UID: %s\n", obj.GetUID()))
-
-	if len(obj.GetLabels()) > 0 {
-		sb.WriteString("Labels:\n")
-		for k, v := range obj.GetLabels() {
-			sb.WriteString(fmt.Sprintf("  %s=%s\n", k, v))
-		}
-	}
-	if len(obj.GetAnnotations()) > 0 {
-		sb.WriteString("Annotations:\n")
-		for k, v := range obj.GetAnnotations() {
-			sb.WriteString(fmt.Sprintf("  %s=%s\n", k, v))
-		}
-	}
-
-	sb.WriteString("\nEvents:\n")
-	if err != nil {
-		sb.WriteString(fmt.Sprintf("Error getting events: %v\n", err))
-	} else {
-		sort.Slice(events.Items, func(i, j int) bool {
-			return events.Items[i].LastTimestamp.Time.Before(events.Items[j].LastTimestamp.Time)
+	// 2. 获取事件
+	var events []corev1.Event
+	if e.clientset != nil {
+		// 使用 UID 查询事件更准确
+		fieldSelector := fmt.Sprintf("involvedObject.uid=%s", result.GetUID())
+		// 备用：如果 UID 查询不到，也可以尝试 name/kind，但 UID 是最准的
+		eventList, err := e.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
+			FieldSelector: fieldSelector,
 		})
-
-		sb.WriteString(fmt.Sprintf("%-12s %-12s %-12s %-20s %s\n", "Type", "Reason", "Age", "From", "Message"))
-		sb.WriteString(fmt.Sprintf("%-12s %-12s %-12s %-20s %s\n", "----", "------", "---", "----", "-------"))
-		for _, evt := range events.Items {
-			age := time.Since(evt.LastTimestamp.Time).Round(time.Second)
-			sb.WriteString(fmt.Sprintf("%-12s %-12s %-12s %-20s %s\n", evt.Type, evt.Reason, age.String(), evt.Source.Component, evt.Message))
+		if err == nil {
+			events = eventList.Items
+			sort.Slice(events, func(i, j int) bool {
+				return events[i].LastTimestamp.Time.Before(events[j].LastTimestamp.Time)
+			})
+		} else {
+			if logCallback != nil {
+				logCallback(taskID, "warning", fmt.Sprintf("Failed to get events: %v", err))
+			} else {
+				log.Printf("[K8s] [%s] Failed to get events: %v", taskID, err)
+			}
 		}
 	}
 
-	return sb.String(), nil
+	// 3. 格式化输出
+	output := "json"
+	if o, ok := params["output"].(string); ok {
+		output = strings.ToLower(o)
+	}
+
+	// 构造包含资源和事件的结构
+	data := map[string]interface{}{
+		"resource": result.Object,
+		"events":   events,
+	}
+
+	if output == "yaml" {
+		yamlData, err := sigsyaml.Marshal(data)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result to YAML: %w", err)
+		}
+		return string(yamlData), nil
+	}
+
+	// Default to JSON
+	resultJSON, _ := json.MarshalIndent(data, "", "  ")
+	return string(resultJSON), nil
 }
 
 // getEvents 获取事件
@@ -879,8 +1056,8 @@ func (e *K8sExecutor) parseResourceAndName(command string) (string, string, erro
 	return command, "", nil
 }
 
-// resolveGVR 解析 GVR
-func (e *K8sExecutor) resolveGVR(resource string) (schema.GroupVersionResource, bool, error) {
+// resolveGVRFromResourceName 解析 GVR
+func (e *K8sExecutor) resolveGVRFromResourceName(resource string) (schema.GroupVersionResource, bool, error) {
 	if e.clientset != nil {
 		groups, err := e.clientset.Discovery().ServerPreferredResources()
 		if err == nil {

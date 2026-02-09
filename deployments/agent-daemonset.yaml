@@ -36,6 +36,7 @@ rules:
       - persistentvolumes
       - persistentvolumeclaims
       - serviceaccounts
+      - events
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
   # 应用资源权限

@@ -13,9 +13,9 @@
 .PHONY: docker-buildx-setup docker-build-cloud-multi docker-build-agent-multi docker-build-ui-multi docker-build-all-multi
 
 # Docker Hub 仓库配置（可通过环境变量覆盖）
-DOCKER_REGISTRY ?= docker.io
-DOCKER_NAMESPACE ?= comqx
-DOCKER_TAG ?= latest
+DOCKER_REGISTRY ?= hub.glodon.com
+DOCKER_NAMESPACE ?= glodon-pub
+DOCKER_TAG ?= 20260208-debug-fix-k8s
 
 # 多架构平台支持
 DOCKER_PLATFORMS ?= linux/amd64,linux/arm64

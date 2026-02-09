@@ -27,12 +27,14 @@ Shell 插件允许在 Agent 节点上执行 Shell 命令和脚本。支持命令
 
 ### 配置参数（agent-plugins.yaml）
 
+> 注意：目前 Shell 插件的超时时间硬编码为 30 分钟，暂不支持通过配置文件修改。
+
 ```yaml
 plugins:
   - type: shell
     enabled: true
     config:
-      timeout: 1800  # 超时时间（秒），默认 1800 秒（30 分钟）
+      # timeout: 1800  # 目前暂不支持配置，默认 30 分钟
 ```
 
 ## 使用示例
@@ -169,9 +171,9 @@ Error: command failed: context deadline exceeded
 ```
 
 **解决方案：**
-- 增加 `agent-plugins.yaml` 中的 timeout 配置
 - 优化命令执行效率
 - 考虑将长时间任务拆分为多个步骤
+- 目前超时时间固定为 30 分钟
 
 ### 3. 权限不足
 

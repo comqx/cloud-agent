@@ -62,6 +62,10 @@ func NewAgent(cloudURL, agentID, agentName string) *Agent {
 		log.Printf("Using default executors (config file not found or invalid: %s)", configPath)
 	}
 
+	// 打印所有已注册的执行器
+	registeredTypes := execMgr.GetRegisteredExecutors()
+	log.Printf("Final registered executors: %v", registeredTypes)
+
 	return &Agent{
 		client:   cl,
 		executor: execMgr,

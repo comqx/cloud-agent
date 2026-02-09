@@ -33,8 +33,6 @@ API 调用插件提供 HTTP/HTTPS 请求功能，支持 GET、POST、PUT、DELET
 | `url` | string | 是 | 请求 URL |
 | `headers` | object | 否 | 请求头 |
 | `body` | object | 否 | 请求体（POST/PUT/PATCH） |
-| `timeout` | int | 否 | 超时时间（秒），默认 30 |
-| `verify_ssl` | boolean | 否 | 是否验证 SSL 证书，默认 true |
 
 ## 配置示例
 
@@ -166,18 +164,7 @@ plugins:
 
 ### 示例 7: 自签名证书（跳过验证）
 
-**任务参数：**
-```json
-{
-  "type": "api",
-  "command": "GET",
-  "params": {
-    "url": "https://internal-api.example.com/status",
-    "verify_ssl": false,
-    "timeout": 60
-  }
-}
-```
+> 注意：目前仅支持在 `agent-plugins.yaml` 全局配置中禁用 SSL 验证，不支持在单次请求中配置。
 
 ## 常见场景
 
@@ -240,8 +227,7 @@ plugins:
     "body": {
       "source": "external",
       "batch_size": 1000
-    },
-    "timeout": 300
+    }
   }
 }
 ```
@@ -253,8 +239,7 @@ plugins:
   "type": "api",
   "command": "GET",
   "params": {
-    "url": "http://app-service:8080/health",
-    "timeout": 5
+    "url": "http://app-service:8080/health"
   }
 }
 ```
@@ -357,11 +342,7 @@ Error: 401 Unauthorized
 
 ### 2. 设置合理的超时时间
 
-```json
-{
-  "timeout": 30  // 根据 API 响应时间调整
-}
-```
+> 注意：超时时间目前仅支持在 `agent-plugins.yaml` 全局配置中设置。
 
 ### 3. 添加请求 ID
 

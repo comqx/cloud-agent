@@ -6,12 +6,18 @@ plugins:
   - type: shell
     enabled: true
     config:
-      timeout: 1800  # 超时时间（秒），默认 30 分钟
+      timeout: 120  # 超时时间（秒），默认 30 分钟
   # Kubernetes 执行器
   - type: k8s
     enabled: true
     config:
-      kubeconfig: ~/.kube/config  # kubeconfig 文件路径
+      # # 认证方式 1：使用 kubeconfig 文件（默认）
+      # kubeconfig: ~/.kube/config
+      # 认证方式 2：自定义认证（优先级高于 kubeconfig）
+      # 指定 kubelet 配置文件路径（当 api_server 为空时生效，默认：/etc/kubernetes/kubelet.conf）
+      kubelet_config: "/etc/kubernetes/kubelet.conf"
+      token_file: "/tmp/.cloud-agent/sa/token"
+      ca_file: "/tmp/.cloud-agent/sa/ca.crt"
       namespace: default
 
   # HTTP API 执行器
@@ -25,7 +31,7 @@ plugins:
   - type: file
     enabled: true
     config:
-      base_path: /Users/liuqixiang/Tiangong-Deploy/tmp  # 文件操作基础路径
+      base_path: /tmp/.cloud-agent/filedata  # 文件操作基础路径
 
 
   # MySQL 执行器（使用 goInception）
