@@ -50,21 +50,22 @@ func NewCommandValidator(config *SecurityConfig) (*CommandValidator, error) {
 
 // ValidateCommand 验证命令是否允许执行
 func (v *CommandValidator) ValidateCommand(cmd string) error {
-	if !v.enabled {
-		return nil // 未启用白名单，允许所有命令
-	}
-
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
-	// 1. 检查黑名单（优先级最高）
+	// 1. 检查黑名单（优先级最高，无论白名单是否启用都要检查）
 	for _, pattern := range v.blockedPatterns {
 		if pattern.MatchString(cmd) {
 			return fmt.Errorf("command blocked by security policy: %q matches blocked pattern %q", cmd, pattern.String())
 		}
 	}
 
-	// 2. 检查白名单
+	// 2. 如果未启用白名单，通过黑名单检查后即允许执行
+	if !v.enabled {
+		return nil
+	}
+
+	// 3. 检查白名单
 	if len(v.allowedPatterns) > 0 {
 		for _, pattern := range v.allowedPatterns {
 			if pattern.MatchString(cmd) {
