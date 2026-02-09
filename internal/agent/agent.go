@@ -57,9 +57,9 @@ func NewAgent(cloudURL, agentID, agentName string) *Agent {
 		execMgr = execMgrWithConfig
 		log.Printf("Loaded executor plugins from config: %s", configPath)
 	} else {
-		// 配置文件不存在或加载失败，使用默认执行器
-		execMgr = executor.NewManager(agentID)
-		log.Printf("Using default executors (config file not found or invalid: %s)", configPath)
+		// 插件配置文件不存在或加载失败，使用默认执行器，但保留安全配置
+		execMgr, _ = executor.NewManagerWithConfigAndLimits(agentID, "", securityConfigPath, nil)
+		log.Printf("Using default executors with security config (plugin config not found or invalid: %s)", configPath)
 	}
 
 	// 打印所有已注册的执行器

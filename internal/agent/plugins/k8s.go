@@ -538,6 +538,10 @@ func (e *K8sExecutor) getResourceFromDynamic(ctx context.Context, dr dynamic.Res
 		return "", fmt.Errorf("failed to get resource: %w", err)
 	}
 
+	if shouldClearManagedFields(result.GetKind()) {
+		clearManagedFields(result.Object)
+	}
+
 	if logCallback != nil {
 		logCallback(taskID, "info", fmt.Sprintf("Successfully retrieved %s", name))
 	} else {
@@ -560,6 +564,18 @@ func (e *K8sExecutor) getResourceFromDynamic(ctx context.Context, dr dynamic.Res
 
 	resultJSON, _ := json.MarshalIndent(result.Object, "", "  ")
 	return string(resultJSON), nil
+}
+
+func clearManagedFields(obj map[string]interface{}) {
+	metadata, ok := obj["metadata"].(map[string]interface{})
+	if !ok || metadata == nil {
+		return
+	}
+	metadata["managedFields"] = []interface{}{}
+}
+
+func shouldClearManagedFields(kind string) bool {
+	return strings.EqualFold(kind, "Pod") || strings.EqualFold(kind, "Node")
 }
 
 // getLogs 获取 Pod 日志
@@ -926,6 +942,10 @@ func (e *K8sExecutor) describeResource(ctx context.Context, dr dynamic.ResourceI
 	result, err := dr.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get resource: %w", err)
+	}
+
+	if shouldClearManagedFields(gvk.Kind) {
+		clearManagedFields(result.Object)
 	}
 
 	// 2. 获取事件
